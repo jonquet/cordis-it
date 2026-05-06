@@ -512,13 +512,21 @@ def main():
     log(f"  Horizon Europe   : {sum(1 for p in all_projects if p['programme']=='HORIZON')}")
     log(f"  H2020            : {sum(1 for p in all_projects if p['programme']=='H2020')}")
     log(f"  FP7              : {sum(1 for p in all_projects if p['programme']=='FP7')}")
-    log(f"  With INRAE       : {sum(1 for p in all_projects if p['hasINRAE'])}")
-    log(f"  With IT          : {sum(1 for p in all_projects if p['hasIT'])}")
-    log(f"  INRAE + IT       : {sum(1 for p in all_projects if p['hasINRAE'] and p['hasIT'])}")
+    log(f"  ──────────────────────")
+    log(f"  IT only          : {sum(1 for p in all_projects if p['hasIT'] and not p['hasINRAE'])}  (hasIT && !hasINRAE)")
+    log(f"  INRAE only       : {sum(1 for p in all_projects if p['hasINRAE'] and not p['hasIT'])}  (hasINRAE && !hasIT)")
+    log(f"  IT + INRAE       : {sum(1 for p in all_projects if p['hasIT'] and p['hasINRAE'])}  (hasIT && hasINRAE)")
+    log(f"  ──────────────────────")
+    log(f"  With IT          : {sum(1 for p in all_projects if p['hasIT'])}  (hasIT)")
+    log(f"  With INRAE       : {sum(1 for p in all_projects if p['hasINRAE'])}  (hasINRAE)")
     log(f"  INRAE coord.     : {sum(1 for p in all_projects if p['inraeRole']=='coordinator')}")
     log(f"  With EuroSciVoc  : {sum(1 for p in all_projects if p['euroSciVoc'])}")
-    budget = sum(p["ecMaxContribution"] for p in all_projects) / 1e6
-    log(f"  Total EU budget  : {budget:.0f} M€")
+    budget_total = sum(p["ecMaxContribution"] for p in all_projects) / 1e6
+    budget_it    = sum(p["itEcContribution"]    for p in all_projects if p['hasIT'])    / 1e6
+    budget_inrae = sum(p["inraeEcContribution"] for p in all_projects if p['hasINRAE']) / 1e6
+    log(f"  Total IT + INRAE budget       : {budget_total:.0f} M€")
+    log(f"  Total IT EU contribution      : {budget_it:.1f} M€")
+    log(f"  Total INRAE EU contribution   : {budget_inrae:.1f} M€")
     ctries = len({c for p in all_projects for c in p["partnerCountries"]})
     log(f"  Partner countries: {ctries}")
 
