@@ -29,7 +29,10 @@
     <button class="tab-btn" data-tab="disciplines">🔬 Disciplines</button>
     <button class="tab-btn" data-tab="budget">💶 Budget</button>
     <button class="tab-btn" data-tab="timeline">📅 Timeline</button>
-    <div style="margin-left:auto;display:flex;align-items:center;padding:0 18px;font-family:'Fira Code',monospace;font-size:.62rem;color:rgba(255,255,255,.45)" id="update-date"></div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:0 18px">
+      <span style="font-family:'Fira Code',monospace;font-size:.62rem;color:rgba(255,255,255,.45)" id="update-date"></span>
+      <button class="about-trigger" onclick="openAbout()">ⓘ about</button>
+    </div>
   </nav>
 </header>
 
@@ -257,6 +260,122 @@
   </main>
 </div>
 
+<!-- ABOUT MODAL -->
+<div class="about-overlay" id="about-overlay" onclick="aboutOverlayClick(event)">
+  <div class="about-modal">
+
+    <div class="about-hdr">
+      <div>
+        <div class="about-hdr-title">About this observatory</div>
+        <div class="about-hdr-sub">EU research data from CORDIS · INRAE Transfert SAS</div>
+      </div>
+      <button class="mclose" onclick="closeAbout()">✕</button>
+    </div>
+
+    <div class="about-body">
+
+      <!-- MISSION -->
+      <div class="about-sec">
+        <div class="about-sec-title">Mission</div>
+        <p class="about-text">This observatory tracks all European research projects across FP7, H2020, and Horizon Europe where INRAE Transfert has participated. The tool is designed for internal portfolio monitoring: tracking project distribution, partner networks, geographic reach, scientific disciplines, and budget allocation across EU research programmes.</p>
+      </div>
+
+      <!-- DATA SOURCES -->
+      <div class="about-sec">
+        <div class="about-sec-title">Data sources</div>
+        <svg viewBox="0 0 620 72" width="100%" style="display:block;margin-bottom:16px" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="16" width="118" height="40" rx="5" fill="#e8f0fb" stroke="#1a4f8a" stroke-width="1.5"/>
+          <text x="69" y="32" text-anchor="middle" font-family="'Fira Code',monospace" font-size="9.5" fill="#1a4f8a" font-weight="500">CORDIS</text>
+          <text x="69" y="47" text-anchor="middle" font-family="'Fira Code',monospace" font-size="8.5" fill="#4a90d9">ZIP exports</text>
+          <line x1="128" y1="36" x2="156" y2="36" stroke="#1a4f8a" stroke-width="1.5"/>
+          <polygon points="156,31 165,36 156,41" fill="#1a4f8a"/>
+          <rect x="165" y="16" width="140" height="40" rx="5" fill="#e8f0fb" stroke="#1a4f8a" stroke-width="1.5"/>
+          <text x="235" y="32" text-anchor="middle" font-family="'Fira Code',monospace" font-size="9.5" fill="#1a4f8a" font-weight="500">prepare_data.py</text>
+          <text x="235" y="47" text-anchor="middle" font-family="'Fira Code',monospace" font-size="8.5" fill="#4a90d9">Python · GitHub Actions</text>
+          <line x1="305" y1="36" x2="333" y2="36" stroke="#1a4f8a" stroke-width="1.5"/>
+          <polygon points="333,31 342,36 333,41" fill="#1a4f8a"/>
+          <rect x="342" y="16" width="140" height="40" rx="5" fill="#e8f0fb" stroke="#1a4f8a" stroke-width="1.5"/>
+          <text x="412" y="32" text-anchor="middle" font-family="'Fira Code',monospace" font-size="9.5" fill="#1a4f8a" font-weight="500">inrae_projects</text>
+          <text x="412" y="47" text-anchor="middle" font-family="'Fira Code',monospace" font-size="8.5" fill="#4a90d9">.json (static)</text>
+          <line x1="482" y1="36" x2="510" y2="36" stroke="#1a4f8a" stroke-width="1.5"/>
+          <polygon points="510,31 519,36 510,41" fill="#1a4f8a"/>
+          <rect x="519" y="16" width="90" height="40" rx="5" fill="#1a4f8a" stroke="#1a4f8a" stroke-width="1.5"/>
+          <text x="564" y="32" text-anchor="middle" font-family="'Fira Code',monospace" font-size="9.5" fill="#fff" font-weight="500">Observatory</text>
+          <text x="564" y="47" text-anchor="middle" font-family="'Fira Code',monospace" font-size="8.5" fill="rgba(255,255,255,.7)">GitHub Pages</text>
+        </svg>
+        <ul class="about-list">
+          <li><strong>Source</strong> — <a href="https://cordis.europa.eu/projects" target="_blank">cordis.europa.eu/projects</a> (official EU open data portal)</li>
+          <li><strong>Programmes</strong> — FP7 (2007–2013) · H2020 (2014–2020) · Horizon Europe (2021–2027)</li>
+          <li><strong>Last data update</strong> — <span id="about-data-date" style="font-family:'Fira Code',monospace">–</span></li>
+          <li><strong>Update frequency</strong> — every Monday, automated via GitHub Actions</li>
+        </ul>
+        <div class="about-note">⚠ FP6 and earlier programmes are not included. Their CORDIS data exports use a different structure — missing per-partner EC contributions, no EuroSciVoc taxonomy, and different project identifiers — which makes them incompatible with the current pipeline.</div>
+      </div>
+
+      <!-- HOW TO READ -->
+      <div class="about-sec">
+        <div class="about-sec-title">How to read each tab</div>
+        <div class="about-tab-grid">
+          <div class="about-tab-card">
+            <div class="about-tab-icon">📋</div>
+            <div class="about-tab-name">Projects</div>
+            <div class="about-tab-tip">Main project list. Use sidebar filters to narrow by programme, role, or status. The search bar covers titles, acronyms, and keywords. Switch to Grid view for a denser layout.</div>
+          </div>
+          <div class="about-tab-card">
+            <div class="about-tab-icon">🤝</div>
+            <div class="about-tab-name">Partners</div>
+            <div class="about-tab-tip">All organisations that have co-participated with IT. "Projects with IT" counts are global and ignore the sidebar filter state. Filter by type (REC, HES, PRC…) or by macro-region.</div>
+          </div>
+          <div class="about-tab-card">
+            <div class="about-tab-icon">🌍</div>
+            <div class="about-tab-name">Geography</div>
+            <div class="about-tab-tip">Choropleth and bar chart always reflect the full IT portfolio. Click a country in the bar chart to carry a country filter into the Projects view.</div>
+          </div>
+          <div class="about-tab-card">
+            <div class="about-tab-icon">🔬</div>
+            <div class="about-tab-name">Disciplines</div>
+            <div class="about-tab-tip">EuroSciVoc taxonomy (L1–L5). Select up to 3 disciplines and combine with OR / AND logic. Counts reflect the full IT portfolio, independent of sidebar filters.</div>
+          </div>
+          <div class="about-tab-card">
+            <div class="about-tab-icon">💶</div>
+            <div class="about-tab-name">Budget</div>
+            <div class="about-tab-tip">Shows IT EU contribution only (not the total project budget). The annual chart prorates each grant over the project duration. All three charts respond to sidebar filters.</div>
+          </div>
+          <div class="about-tab-card">
+            <div class="about-tab-icon">📅</div>
+            <div class="about-tab-name">Timeline</div>
+            <div class="about-tab-tip">Gantt view: each bar is one project, coloured by programme. Red line = today. Use "Ongoing only" to hide closed projects. Click any bar to open the project detail.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- METHODOLOGY -->
+      <div class="about-sec">
+        <div class="about-sec-title">Methodology</div>
+        <dl class="about-dl">
+          <dt>Annual budget prorata</dt>
+          <dd>Each project's IT EU contribution is distributed evenly over its duration. A project spanning 3.5 years with €700k IT contribution yields ~€200k/year. Years partially covered receive a proportional share. This allows meaningful cross-year comparisons despite uneven project starts and ends.</dd>
+
+          <dt>FP7 → funding type mapping</dt>
+          <dd>FP7 funding scheme codes (CP, CP-TP, MC-ITN, ERC-ADG, etc.) are normalised to categories equivalent to H2020/HE types — Research &amp; Innovation, Marie Skłodowska-Curie, ERC, Coordination &amp; Support — to enable cross-programme budget breakdowns on the Budget tab.</dd>
+
+          <dt>Exclusions</dt>
+          <dd>Projects where only INRAE participates without INRAE Transfert SAS are excluded. Projects labelled <code>hasIT = false</code> in the dataset are loaded but not shown. FP6 and earlier programmes are absent from the CORDIS export used by the pipeline.</dd>
+        </dl>
+      </div>
+
+    </div><!-- /about-body -->
+
+    <div class="about-footer">
+      Built by Anthony Vermue
+      <span style="opacity:.4">·</span>
+      <a href="https://github.com/avermue/cordis-it" target="_blank">github.com/avermue/cordis-it ↗</a>
+      <span id="about-version"></span>
+    </div>
+
+  </div><!-- /about-modal -->
+</div><!-- /about-overlay -->
+
 <!-- MODAL -->
 <div class="overlay" id="overlay" onclick="overlayClick(event)">
   <div class="modal">
@@ -305,6 +424,7 @@
 <script src="js/geography.js"></script>
 <script src="js/timeline.js"></script>
 <script src="js/modal.js"></script>
+<script src="js/about.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

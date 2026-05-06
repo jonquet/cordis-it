@@ -64,4 +64,4 @@ function overlayClick(e) {
   if (e.target === document.getElementById('overlay')) closeModal();
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('overlay').classList.contains('open')) closeModal(); });
