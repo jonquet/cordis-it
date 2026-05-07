@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>INRAE Transfert · EU Projects</title>
+<script>
+  try {
+    var m = localStorage.getItem('cordis-it.viewMode');
+    document.documentElement.classList.add('mode-' + (['IT','INRAE','BOTH'].includes(m) ? m : 'IT'));
+  } catch(e) { document.documentElement.classList.add('mode-IT'); }
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=Fira+Code:wght@400;500&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -65,10 +71,7 @@
       <div class="cl" id="f-scheme-group"></div>
     </div>
     <hr class="fr">
-    <div class="fb">
-      <span class="ft">IT Role</span>
-      <div class="cl" id="f-it-role"></div>
-    </div>
+    <div id="role-section"></div>
     <hr class="fr">
     <div class="fb">
       <span class="ft">Status</span>
@@ -135,7 +138,7 @@
           <table class="ptable">
             <thead><tr>
               <th>Organisation</th><th>Abbrev.</th><th>Country</th><th>Type</th>
-              <th>PIC</th><th>Projects with IT</th><th>Total EU contrib.</th>
+              <th>PIC</th><th id="partners-proj-col">Projects with IT</th><th>Total EU contrib.</th>
             </tr></thead>
             <tbody id="partner-tbody"></tbody>
           </table>
@@ -219,15 +222,15 @@
       <div class="stat-row" id="budget-stats"></div>
       <div class="chart-grid">
         <div class="chart-box">
-          <div class="chart-title">IT Grants Distribution (k€)</div>
+          <div class="chart-title" id="ct-hist">IT Grants Distribution (k€)</div>
           <canvas id="chart-hist"></canvas>
         </div>
         <div class="chart-box">
-          <div class="chart-title">IT Budget by Funding Type</div>
+          <div class="chart-title" id="ct-scheme">IT Budget by Funding Type</div>
           <canvas id="chart-scheme"></canvas>
         </div>
         <div class="chart-box full tall">
-          <div class="chart-title">IT Annual Budget (prorata over project duration)</div>
+          <div class="chart-title" id="ct-time">IT Annual Budget (prorata over project duration)</div>
           <canvas id="chart-time"></canvas>
         </div>
       </div>
@@ -257,7 +260,7 @@
         <div class="empty"><span class="big">◌</span>Loading…</div>
       </div>
       <div class="chart-box" style="margin-top:12px">
-        <div class="chart-title">Simultaneous active IT projects per year</div>
+        <div class="chart-title">Simultaneous active projects per year</div>
         <canvas id="chart-concurrent"></canvas>
       </div>
     </div>
@@ -282,7 +285,7 @@
       <!-- MISSION -->
       <div class="about-sec">
         <div class="about-sec-title">Mission</div>
-        <p class="about-text">This observatory tracks all European research projects across FP7, H2020, and Horizon Europe where INRAE Transfert has participated. The tool is designed for internal portfolio monitoring: tracking project distribution, partner networks, geographic reach, scientific disciplines, and budget allocation across EU research programmes.</p>
+        <p class="about-text">This observatory tracks all European research projects across FP7, H2020, and Horizon Europe involving <strong>INRAE Transfert (IT)</strong> or <strong>INRAE</strong>. Use the IT / INRAE / IT+INRAE selector at the top to switch the active scope. The tool monitors project distribution, partner networks, geographic reach, scientific disciplines, and budget allocation across EU research programmes.</p>
       </div>
 
       <!-- DATA SOURCES -->
@@ -329,22 +332,22 @@
           <div class="about-tab-card">
             <div class="about-tab-icon">🤝</div>
             <div class="about-tab-name">Partners</div>
-            <div class="about-tab-tip">All organisations that have co-participated with IT. "Projects with IT" counts are global and ignore the sidebar filter state. Filter by type (REC, HES, PRC…) or by macro-region.</div>
+            <div class="about-tab-tip">All organisations that have co-participated with the active scope (IT, INRAE, or both). The "Projects" column counts how many projects each org shares with the scope. Filter by type (REC, HES, PRC…) or by macro-region.</div>
           </div>
           <div class="about-tab-card">
             <div class="about-tab-icon">🌍</div>
             <div class="about-tab-name">Geography</div>
-            <div class="about-tab-tip">Choropleth and bar chart always reflect the full IT portfolio. Click a country in the bar chart to carry a country filter into the Projects view.</div>
+            <div class="about-tab-tip">Choropleth and bar chart reflect the active scope's portfolio. Click a country in the bar chart to carry a country filter into the Projects view.</div>
           </div>
           <div class="about-tab-card">
             <div class="about-tab-icon">🔬</div>
             <div class="about-tab-name">Disciplines</div>
-            <div class="about-tab-tip">EuroSciVoc taxonomy (L1–L5). Select up to 3 disciplines and combine with OR / AND logic. Counts reflect the full IT portfolio, independent of sidebar filters.</div>
+            <div class="about-tab-tip">EuroSciVoc taxonomy (L1–L5). Select up to 3 disciplines and combine with OR / AND logic. Counts reflect the active scope's portfolio, independent of sidebar filters.</div>
           </div>
           <div class="about-tab-card">
             <div class="about-tab-icon">💶</div>
             <div class="about-tab-name">Budget</div>
-            <div class="about-tab-tip">Shows IT EU contribution only (not the total project budget). The annual chart prorates each grant over the project duration. All three charts respond to sidebar filters.</div>
+            <div class="about-tab-tip">Shows the active scope's EU contribution (IT, INRAE, or summed in IT+INRAE mode). The annual chart prorates each grant over the project duration. All three charts respond to sidebar filters.</div>
           </div>
           <div class="about-tab-card">
             <div class="about-tab-icon">📅</div>
@@ -359,13 +362,16 @@
         <div class="about-sec-title">Methodology</div>
         <dl class="about-dl">
           <dt>Annual budget prorata</dt>
-          <dd>Each project's IT EU contribution is distributed evenly over its duration. A project spanning 3.5 years with €700k IT contribution yields ~€200k/year. Years partially covered receive a proportional share. This allows meaningful cross-year comparisons despite uneven project starts and ends.</dd>
+          <dd>Each project's EU contribution (for the active scope) is distributed evenly over its duration. A project spanning 3.5 years with €700k contribution yields ~€200k/year. Years partially covered receive a proportional share. This allows meaningful cross-year comparisons despite uneven project starts and ends.</dd>
+
+          <dt>Scope modes (IT / INRAE / IT+INRAE)</dt>
+          <dd>The selector at the top of the page controls which projects are visible. <strong>IT</strong> shows projects where INRAE Transfert SAS is a partner. <strong>INRAE</strong> shows projects where the broader INRAE research institute participates (typically a much larger portfolio). <strong>IT+INRAE</strong> shows the union — projects involving either entity. In IT+INRAE mode, budget figures are summed (IT + INRAE combined). Each project's card shows up to three budget chips: total EU budget, IT contribution, INRAE contribution — only the relevant ones are displayed.</dd>
 
           <dt>FP7 → funding type mapping</dt>
-          <dd>FP7 funding scheme codes (CP, CP-TP, MC-ITN, ERC-ADG, etc.) are normalised to categories equivalent to H2020/HE types — Research &amp; Innovation, Marie Skłodowska-Curie, ERC, Coordination &amp; Support — to enable cross-programme budget breakdowns on the Budget tab.</dd>
+          <dd>FP7 funding scheme codes are normalised to categories equivalent to H2020/HE types to enable cross-programme budget breakdowns. Mappings include: <code>CP</code>, <code>CP-TP</code>, <code>CP-IP</code> → RIA · <code>CP-*-SICA</code> → RIA · <code>MC-*</code> (Marie Curie) → MSCA · <code>ERC-*</code> → ERC · <code>BSG-SME*</code> → EIC · <code>NoE</code> (Networks of Excellence) → CSA · <code>HORIZON-AG/PARC</code> → COFUND.</dd>
 
           <dt>Exclusions</dt>
-          <dd>Projects where only INRAE participates without INRAE Transfert SAS are excluded. Projects labelled <code>hasIT = false</code> in the dataset are loaded but not shown. FP6 and earlier programmes are absent from the CORDIS export used by the pipeline.</dd>
+          <dd>FP6 and earlier programmes are absent from the CORDIS export used by the pipeline (their data structure differs significantly). EuroSciVoc taxonomy is unavailable for FP7 and earlier projects.</dd>
         </dl>
       </div>
 
@@ -398,7 +404,7 @@
         <dl class="kv" id="m-info"></dl>
       </div>
       <div class="msec">
-        <div class="msec-title">IT participation</div>
+        <div class="msec-title" id="m-it-title">IT participation</div>
         <dl class="kv" id="m-it"></dl>
       </div>
       <div class="msec full">

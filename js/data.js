@@ -15,7 +15,7 @@ const SCHEME_GROUPS = {
   'CSA':         s => s.includes('CSA') || s === 'NOE',
   'EIC':         s => s.includes('EIC') || /^BSG-SME/.test(s),
   'INFRA':       s => s === 'INFRA',
-  'JU / COFUND': s => /\bJU-|\bCOFUND\b|^AG$/.test(s),
+  'COFUND':      s => /\bJU-|\bCOFUND\b|^AG$/.test(s),
   'Other':       () => true
 };
 
@@ -151,3 +151,45 @@ const PROG_COLORS = {
   'H2020':   'rgba(26,79,138,.8)',
   'HORIZON': 'rgba(30,86,49,.8)',
 };
+
+/* ── Active scope helpers (driven by VIEW_MODE, defined in app.js) ── */
+function activeColors() {
+  if (VIEW_MODE === 'INRAE') {
+    return { main: 'var(--inrae)', mid: 'var(--inrae-mid)', light: 'var(--inrae-light)', pale: 'var(--inrae-pale)',
+             rgba: a => `rgba(0,132,127,${a})`, label: 'INRAE' };
+  }
+  if (VIEW_MODE === 'BOTH') {
+    return { main: 'var(--both)', mid: 'var(--both-mid)', light: 'var(--both-mid)', pale: 'var(--both-pale)',
+             rgba: a => `rgba(39,85,98,${a})`, label: 'IT + INRAE' };
+  }
+  return   { main: 'var(--it)', mid: 'var(--it-mid)', light: 'var(--it-light)', pale: 'var(--it-pale)',
+             rgba: a => `rgba(37,99,171,${a})`, label: 'IT' };
+}
+
+function activeBudgetField() {
+  if (VIEW_MODE === 'INRAE') return 'inraeEcContribution';
+  if (VIEW_MODE === 'BOTH')  return null;
+  return 'itEcContribution';
+}
+
+function activeRoleField() {
+  if (VIEW_MODE === 'INRAE') return 'inraeRole';
+  if (VIEW_MODE === 'BOTH')  return null;
+  return 'itRole';
+}
+
+/* ── Entity badges + budget chips (used in cards.js + modal.js) ── */
+function entityBadges(p) {
+  const badges = [];
+  if (p.hasIT)    badges.push(`<span class="tag tag-entity tag-it">IT · ${roleL(p.itRole)}</span>`);
+  if (p.hasINRAE) badges.push(`<span class="tag tag-entity tag-inrae">INRAE · ${roleL(p.inraeRole)}</span>`);
+  return badges.join('');
+}
+
+function budgetChips(p) {
+  const chips = [];
+  if (p.ecMaxContribution > 0) chips.push(`<span class="cb cb-total">Total: ${fmtM(p.ecMaxContribution)}</span>`);
+  if (p.hasIT)    chips.push(`<span class="cb cb-it">IT: ${p.itEcContribution > 0 ? fmtM(p.itEcContribution) : '0€ via INRAE'}</span>`);
+  if (p.hasINRAE && p.inraeEcContribution > 0) chips.push(`<span class="cb cb-inrae">INRAE: ${fmtM(p.inraeEcContribution)}</span>`);
+  return chips.length ? `<div class="card-budgets">${chips.join('')}</div>` : '<span class="card-budget">–</span>';
+}

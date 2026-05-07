@@ -7,6 +7,13 @@
   --it-mid:     #2563ab;
   --it-light:   #4a90d9;
   --it-pale:    #e8f0fb;
+  --inrae:       #00847f;
+  --inrae-mid:   #009a94;
+  --inrae-light: #4dbdb8;
+  --inrae-pale:  #e0f2f1;
+  --both:        #275562;
+  --both-mid:    #3a6e7e;
+  --both-pale:   #e8eef0;
   --ink:        #1a1d24;
   --ink-mid:    #3a4050;
   --ink-light:  #6b7280;
@@ -27,6 +34,20 @@
   --shadow-lg: 0 6px 24px rgba(0,0,0,.12);
   --sidebar-w: 240px;
   --header-h:  96px;
+}
+
+/* Active scope override — INRAE mode rebinds the IT vars to INRAE values */
+html.mode-INRAE {
+  --it:       var(--inrae);
+  --it-mid:   var(--inrae-mid);
+  --it-light: var(--inrae-light);
+  --it-pale:  var(--inrae-pale);
+}
+html.mode-BOTH {
+  --it:       var(--both);
+  --it-mid:   var(--both-mid);
+  --it-light: var(--both-mid);
+  --it-pale:  var(--both-pale);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Lato',sans-serif;font-size:14px;background:var(--paper);color:var(--ink);line-height:1.5}
@@ -100,7 +121,7 @@ button{font-family:'Lato',sans-serif;cursor:pointer}
 /* ── TAGS ── */
 .tag{font-family:'Fira Code',monospace;font-size:.59rem;padding:2px 6px;border-radius:10px;border:1px solid;white-space:nowrap;line-height:1.7}
 .tg-he        {color:#1e5631;border-color:#a8d8b9;background:#e8f5ec}
-.tg-h2020     {color:var(--it);border-color:#93c5fd;background:var(--it-pale)}
+.tg-h2020     {color:#1a4f8a;border-color:#93c5fd;background:#e8f0fb}
 .tg-fp7       {color:#5b2d8e;border-color:#c4b5fd;background:#f5f3ff}
 .tg-SIGNED    {color:var(--green);border-color:#86efac;background:var(--green-pale)}
 .tg-CLOSED    {color:#78350f;border-color:#fcd34d;background:#fef9c3}
@@ -110,6 +131,16 @@ button{font-family:'Lato',sans-serif;cursor:pointer}
 .tg-associatedPartner{color:var(--purple);border-color:#c4b5fd;background:var(--purple-pale)}
 .tg-thirdParty      {color:var(--ink-light);border-color:var(--rule);background:var(--paper)}
 .tg-scheme{color:var(--ink-mid);border-color:var(--rule);background:var(--paper)}
+/* Entity badges (always blue for IT, always teal for INRAE) */
+.tag.tag-entity{border-style:dashed}
+.tag-it    {color:#1a4f8a;border-color:#93c5fd;background:#e8f0fb}
+.tag-inrae {color:#00847f;border-color:#4dbdb8;background:#e0f2f1}
+/* Card budget chips (3 slots: Total / IT / INRAE) */
+.card-budgets{display:flex;gap:8px;font-family:'Fira Code',monospace;font-size:.65rem;font-weight:500;flex-wrap:wrap}
+.cb{white-space:nowrap}
+.cb-total{color:var(--ink-light)}
+.cb-it{color:#1a4f8a}
+.cb-inrae{color:#00847f}
 
 /* ── CARDS ── */
 #grid{display:grid;gap:8px;grid-template-columns:1fr}

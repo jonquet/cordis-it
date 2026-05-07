@@ -12,7 +12,6 @@ function renderCards() {
     const flags = p.partnerCountries.map(flag).join('');
     const kw = p.keywords ? `<div class="card-kw">🏷 ${p.keywords}</div>` : '';
     const scheme = p.schemeGroup ? `<span class="tag tg-scheme">${p.schemeGroup}</span>` : '';
-    const itTag = `<span class="tag tg-${p.itRole}" style="border-style:dashed">IT · ${roleL(p.itRole)}</span>`;
     return `<div class="card" onclick="openModal('${p.id}','${p.programme}')">
       <div class="card-top">
         <span class="card-acro">${p.acronym || '–'}</span>
@@ -20,11 +19,11 @@ function renderCards() {
       </div>
       <div class="card-body">
         ${kw}
-        <div class="card-tags">${progTag(p)}<span class="tag tg-${p.status}">${p.status}</span>${scheme}${itTag}</div>
+        <div class="card-tags">${progTag(p)}<span class="tag tg-${p.status}">${p.status}</span>${scheme}${entityBadges(p)}</div>
       </div>
       <div class="card-foot">
         <span class="card-dates">📅 ${fmtD(p.startDate)} → ${fmtD(p.endDate)}</span>
-        <span class="card-budget">${p.itEcContribution ? fmtM(p.itEcContribution) : p.hasIT && !p.itEcContribution ? '0€ (via INRAE)' : p.ecMaxContribution ? 'Total: ' + fmtM(p.ecMaxContribution) : '–'}</span>
+        ${budgetChips(p)}
         <span class="card-flags" title="${p.partnerCountries.join(', ')}">${flags}</span>
         <a class="card-link" href="${p.cordisUrl}" target="_blank" onclick="event.stopPropagation()">CORDIS ↗</a>
       </div>

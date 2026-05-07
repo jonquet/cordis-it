@@ -3,7 +3,7 @@
    ══════════════════════════════════════════════════════════════ */
 
 let ALL = [], VISIBLE_PROJECTS = [], FILTERED = [];
-let FILTERS = { programme: new Set(), itRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
+let FILTERS = { programme: new Set(), itRole: new Set(), inraeRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
 let SEARCH = '', SORT = 'startDate-desc';
 let DOMAIN_FILTERS = [], DOMAIN_OPERATOR = 'OR';
 let REGION_FILTER = null, PARTNER_FILTER = null, PARTNER_PAGE = 0;
@@ -17,6 +17,9 @@ function applyViewMode({ rebuild = true } = {}) {
   if (VIEW_MODE === 'IT')         VISIBLE_PROJECTS = ALL.filter(p => p.hasIT);
   else if (VIEW_MODE === 'INRAE') VISIBLE_PROJECTS = ALL.filter(p => p.hasINRAE);
   else                            VISIBLE_PROJECTS = ALL.filter(p => p.hasIT || p.hasINRAE);
+
+  document.documentElement.classList.remove('mode-IT', 'mode-INRAE', 'mode-BOTH');
+  document.documentElement.classList.add('mode-' + VIEW_MODE);
 
   document.querySelectorAll('.vm-btn').forEach(b =>
     b.classList.toggle('on', b.dataset.mode === VIEW_MODE));
@@ -32,6 +35,8 @@ function applyViewMode({ rebuild = true } = {}) {
 
 function setViewMode(mode) {
   if (mode === VIEW_MODE) return;
+  if (mode === 'IT')    FILTERS.inraeRole.clear();
+  if (mode === 'INRAE') FILTERS.itRole.clear();
   VIEW_MODE = mode;
   try { localStorage.setItem('cordis-it.viewMode', mode); } catch (e) {}
   applyViewMode();
@@ -102,12 +107,22 @@ function init() {
 function buildKPIs() {
   const n = VISIBLE_PROJECTS.length;
   const signed = VISIBLE_PROJECTS.filter(p => p.status === 'SIGNED').length;
-  const budget = VISIBLE_PROJECTS.reduce((s, p) => s + (p.itEcContribution || 0), 0) / 1e6;
+  let budget, projLabel, budgetLabel;
+  if (VIEW_MODE === 'BOTH') {
+    budget = VISIBLE_PROJECTS.reduce((s, p) => s + (p.itEcContribution || 0) + (p.inraeEcContribution || 0), 0) / 1e6;
+    projLabel   = 'Projects';
+    budgetLabel = 'Total budget M€';
+  } else {
+    const field = activeBudgetField();
+    budget = VISIBLE_PROJECTS.reduce((s, p) => s + (p[field] || 0), 0) / 1e6;
+    projLabel   = activeColors().label + ' projects';
+    budgetLabel = activeColors().label + ' budget M€';
+  }
   const countries = new Set(VISIBLE_PROJECTS.flatMap(p => p.partnerCountries)).size;
   document.getElementById('hdr-kpis').innerHTML = `
-    <div class="kpi"><span class="kpi-val">${n}</span><span class="kpi-lbl">IT projects</span></div>
+    <div class="kpi"><span class="kpi-val">${n}</span><span class="kpi-lbl">${projLabel}</span></div>
     <div class="kpi"><span class="kpi-val">${signed}</span><span class="kpi-lbl">Ongoing</span></div>
-    <div class="kpi"><span class="kpi-val">${budget.toFixed(0)}</span><span class="kpi-lbl">IT budget M€</span></div>
+    <div class="kpi"><span class="kpi-val">${budget.toFixed(0)}</span><span class="kpi-lbl">${budgetLabel}</span></div>
     <div class="kpi"><span class="kpi-val">${countries}</span><span class="kpi-lbl">Countries</span></div>`;
 }
 
@@ -122,6 +137,7 @@ function apply() {
     }
     if (FILTERS.programme.size && !FILTERS.programme.has(p.programme)) return false;
     if (FILTERS.itRole.size && !FILTERS.itRole.has(p.itRole)) return false;
+    if (FILTERS.inraeRole.size && !FILTERS.inraeRole.has(p.inraeRole)) return false;
     if (FILTERS.schemeGroup.size && !FILTERS.schemeGroup.has(p.schemeGroup)) return false;
     if (FILTERS.status.size && !FILTERS.status.has(p.status)) return false;
     if (FILTERS.country.size && !p.partnerCountries.some(c => FILTERS.country.has(c))) return false;
@@ -162,7 +178,15 @@ function apply() {
   FILTERED.sort((a, b) => {
     let va, vb;
     if (sk === 'startDate') { va = a.startDate || ''; vb = b.startDate || ''; }
-    else if (sk === 'budget') { va = a.itEcContribution || 0; vb = b.itEcContribution || 0; }
+    else if (sk === 'budget') {
+      if (VIEW_MODE === 'BOTH') {
+        va = (a.itEcContribution || 0) + (a.inraeEcContribution || 0);
+        vb = (b.itEcContribution || 0) + (b.inraeEcContribution || 0);
+      } else {
+        const f = activeBudgetField();
+        va = a[f] || 0; vb = b[f] || 0;
+      }
+    }
     else if (sk === 'acronym') { va = a.acronym || ''; vb = b.acronym || ''; }
     else { va = a.partnerCount || 0; vb = b.partnerCount || 0; }
     const c = typeof va === 'string' ? va.localeCompare(vb, 'en') : va - vb;
@@ -174,7 +198,7 @@ function apply() {
 function renderAll() {
   const n = FILTERED.length, tot = VISIBLE_PROJECTS.length;
   document.getElementById('rcount').innerHTML =
-    `<strong>${n}</strong> IT project${n !== 1 ? 's' : ''} of ${tot}`;
+    `<strong>${n}</strong> project${n !== 1 ? 's' : ''} of ${tot}`;
   renderActiveFilters();
   renderCards();
   renderBudget();
@@ -215,6 +239,11 @@ function renderActiveFilters() {
   [...FILTERS.itRole].forEach(v => addPill(
     `IT role: ${ROLE_SHORT[v] || v}`, '',
     () => { FILTERS.itRole.delete(v); syncCheckbox('itRole', v, false); apply(); }
+  ));
+
+  [...FILTERS.inraeRole].forEach(v => addPill(
+    `INRAE role: ${ROLE_SHORT[v] || v}`, '',
+    () => { FILTERS.inraeRole.delete(v); syncCheckbox('inraeRole', v, false); apply(); }
   ));
 
   [...FILTERS.schemeGroup].forEach(v => addPill(

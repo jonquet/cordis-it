@@ -50,12 +50,15 @@ function renderTimeline() {
   const rows = proj.map(p => {
     const base = PROG_COLORS[normProg(p)] || 'rgba(100,100,100,.8)';
     const barColor = p.status === 'CLOSED' ? base.replace(/[\d.]+\)$/, '.3)') : base;
+    const roles = [];
+    if (p.hasIT)    roles.push(`IT: ${roleL(p.itRole)}`);
+    if (p.hasINRAE) roles.push(`INRAE: ${roleL(p.inraeRole)}`);
     return `<div class="g-row">
       <div class="g-name" onclick="openModal('${p.id}','${p.programme}')" title="${p.title}">${p.acronym || '–'}</div>
       <div style="flex:1;position:relative;height:13px">
         <div class="g-bar" style="left:${pct(p.startDate)}%;width:${w(p.startDate, p.endDate)}%;background:${barColor}"
              onclick="openModal('${p.id}','${p.programme}')"
-             title="${p.acronym} | ${fmtD(p.startDate)} → ${fmtD(p.endDate)} | ${p.status} | IT: ${roleL(p.itRole)}"></div>
+             title="${p.acronym} | ${fmtD(p.startDate)} → ${fmtD(p.endDate)} | ${p.status} | ${roles.join(' · ')}"></div>
         <div style="position:absolute;top:0;bottom:0;width:1.5px;background:var(--red);opacity:.4;left:${todayPct}%;pointer-events:none"></div>
       </div>
     </div>`;
@@ -86,9 +89,9 @@ function renderTimeline() {
       data: {
         labels: concurrent.map(d => d.y),
         datasets: [{
-          label: 'Active IT projects',
+          label: 'Active projects',
           data: concurrent.map(d => d.count),
-          backgroundColor: concurrent.map(d => d.y === new Date().getFullYear() ? 'rgba(37,99,171,1)' : 'rgba(37,99,171,.6)'),
+          backgroundColor: concurrent.map(d => d.y === new Date().getFullYear() ? activeColors().rgba(1) : activeColors().rgba(0.6)),
           borderRadius: 3
         }]
       },

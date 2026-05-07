@@ -14,7 +14,7 @@ function openModal(id, prog) {
   document.getElementById('m-tags').innerHTML =
     `${progTag(p)}<span class="tag tg-${p.status}">${p.status}</span>
     ${p.schemeGroup ? `<span class="tag tg-scheme">${p.schemeGroup}</span>` : ''}
-    <span class="tag tg-${p.itRole}" style="border-style:dashed">IT · ${roleL(p.itRole)}</span>`;
+    ${entityBadges(p)}`;
 
   document.getElementById('m-info').innerHTML = `
     <dt>Programme</dt><dd>${p.frameworkProgramme || p.programme}</dd>
@@ -26,11 +26,23 @@ function openModal(id, prog) {
     <dt>Keywords</dt><dd>${p.keywords || '–'}</dd>
     <dt>Domains</dt><dd>${(p.domains || []).join(', ') || '–'}</dd>`;
 
-  document.getElementById('m-it').innerHTML = `
-    <dt>IT Role</dt><dd>${roleL(p.itRole)}</dd>
-    <dt>IT EU Contribution</dt><dd>${p.itEcContribution ? fmtM(p.itEcContribution) : '0€ (via INRAE)'}</dd>
+  function entityRows(label, role, ec, isIT) {
+    const v = ec > 0 ? fmtM(ec) : (isIT ? '0€ (via INRAE)' : '0€');
+    return `<dt>${label} Role</dt><dd>${roleL(role)}</dd>
+            <dt>${label} EU Contribution</dt><dd>${v}</dd>`;
+  }
+  let entityHTML = '';
+  if (p.hasIT)    entityHTML += entityRows('IT',    p.itRole,    p.itEcContribution,    true);
+  if (p.hasINRAE) entityHTML += entityRows('INRAE', p.inraeRole, p.inraeEcContribution, false);
+  document.getElementById('m-it').innerHTML = entityHTML + `
     <dt>Partners</dt><dd>${p.partnerCount} organisations</dd>
     <dt>Countries</dt><dd>${p.partnerCountries.map(c => flag(c) + ' ' + c).join(', ') || '–'}</dd>`;
+
+  let mTitle;
+  if (p.hasIT && p.hasINRAE) mTitle = 'Participation';
+  else if (p.hasIT)          mTitle = 'IT participation';
+  else                       mTitle = 'INRAE participation';
+  document.getElementById('m-it-title').textContent = mTitle;
 
   document.getElementById('m-pt-title').textContent = `Partners (${p.partnerCount})`;
 
@@ -41,7 +53,7 @@ function openModal(id, prog) {
     const sn = (o.shortName || '').toUpperCase();
     const isT = nm.includes('INRAE TRANSFERT') || nm.includes('INRA TRANSFERT');
     const isINRAE = !isT && (sn === 'INRAE' || sn === 'INRA' || nm.includes("INSTITUT NATIONAL DE RECHERCHE POUR L'AGRICULTURE") || nm.includes("INSTITUT NATIONAL DE LA RECHERCHE AGRONOMIQUE"));
-    const rowStyle = isT ? 'background:var(--it-pale);color:var(--it);font-weight:700' : isINRAE ? 'background:#e8f5ec;color:#1e5631;font-weight:600' : '';
+    const rowStyle = isT ? 'background:#e8f0fb;color:#1a4f8a;font-weight:700' : isINRAE ? 'background:#e8f5ec;color:#1e5631;font-weight:600' : '';
     return `<tr style="${rowStyle}">
       <td>${o.name}${isT ? ' ✦ IT' : isINRAE ? ' ✦ INRAE' : ''}</td>
       <td>${flag(o.country)} ${o.country}</td>

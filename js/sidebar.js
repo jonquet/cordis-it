@@ -14,11 +14,10 @@ function buildSidebar() {
     <label class="ci"><input type="checkbox" data-key="schemeGroup" value="${g}">
     ${g}<span class="cc">${sgCounts[g] || 0}</span></label>`).join('');
 
-  // IT roles — sorted by project count desc
-  const roleCounts = {};
-  VISIBLE_PROJECTS.forEach(p => { if (p.itRole) roleCounts[p.itRole] = (roleCounts[p.itRole] || 0) + 1; });
-  const rolesSorted = Object.keys(roleCounts).sort((a, b) => roleCounts[b] - roleCounts[a]);
-  buildList('f-it-role', 'itRole', rolesSorted, p => p.itRole, roleL);
+  // ── Role section (1 or 2 blocks depending on VIEW_MODE) ──
+  renderRoleSection();
+  if (VIEW_MODE !== 'INRAE') populateRoleList('f-it-role',    'itRole',    p => p.itRole);
+  if (VIEW_MODE !== 'IT')    populateRoleList('f-inrae-role', 'inraeRole', p => p.inraeRole);
 
   buildList('f-status', 'status', [...new Set(VISIBLE_PROJECTS.map(p => p.status).filter(Boolean))].sort(), p => p.status);
 
@@ -40,6 +39,28 @@ function buildList(elId, key, vals, getter, labelFn) {
   el.innerHTML = vals.map(v => `<label class="ci">
     <input type="checkbox" data-key="${key}" value="${v}">
     ${labelFn ? labelFn(v) : v}<span class="cc">${c[v] || 0}</span></label>`).join('');
+}
+
+function renderRoleSection() {
+  const sec = document.getElementById('role-section');
+  if (!sec) return;
+  if (VIEW_MODE === 'IT') {
+    sec.innerHTML = `<div class="fb"><span class="ft">IT Role</span><div class="cl" id="f-it-role"></div></div>`;
+  } else if (VIEW_MODE === 'INRAE') {
+    sec.innerHTML = `<div class="fb"><span class="ft">INRAE Role</span><div class="cl" id="f-inrae-role"></div></div>`;
+  } else {
+    sec.innerHTML = `
+      <div class="fb"><span class="ft">IT Role</span><div class="cl" id="f-it-role"></div></div>
+      <hr class="fr">
+      <div class="fb"><span class="ft">INRAE Role</span><div class="cl" id="f-inrae-role"></div></div>`;
+  }
+}
+
+function populateRoleList(elId, key, getter) {
+  const counts = {};
+  VISIBLE_PROJECTS.forEach(p => { const r = getter(p); if (r) counts[r] = (counts[r] || 0) + 1; });
+  const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  buildList(elId, key, sorted, getter, roleL);
 }
 
 /* ── Re-tick checkboxes from active FILTERS state (after rebuild) ── */

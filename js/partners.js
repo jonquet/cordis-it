@@ -3,6 +3,11 @@
    ══════════════════════════════════════════════════════════════ */
 
 function renderPartners() {
+  const colEl = document.getElementById('partners-proj-col');
+  if (colEl) colEl.textContent = VIEW_MODE === 'IT'    ? 'Projects with IT'
+                              :  VIEW_MODE === 'INRAE' ? 'Projects with INRAE'
+                              :                          'Projects';
+
   const q = SEARCH.toLowerCase().trim();
   const type = document.getElementById('partner-type').value;
   const partnerRegion = document.getElementById('partner-region').value;
@@ -47,8 +52,6 @@ function renderPartners() {
   FILTERED.forEach(p => {
     (p.partners || []).forEach(o => {
       if (!o.name) return;
-      const nm = (o.name || '').toUpperCase();
-      if (nm.includes('INRAE TRANSFERT') || nm.includes('INRA TRANSFERT')) return;
       const key = o.name + '||' + o.country;
       if (!orgMap[key]) orgMap[key] = { name: o.name, shortName: o.shortName || '', country: o.country, activityType: o.activityType, pic: o.pic || '', projects: 0, totalEC: 0 };
       orgMap[key].projects++;
@@ -75,14 +78,17 @@ function renderPartners() {
     ? rows.map(o => {
       const nm = (o.name || '').toUpperCase();
       const sn = (o.shortName || '').toUpperCase();
-      const isINRAE = sn === 'INRAE' || sn === 'INRA' || nm.includes("INSTITUT NATIONAL DE RECHERCHE POUR L'AGRICULTURE") || nm.includes("INSTITUT NATIONAL DE LA RECHERCHE AGRONOMIQUE");
+      const isT     = nm.includes('INRAE TRANSFERT') || nm.includes('INRA TRANSFERT');
+      const isINRAE = !isT && (sn === 'INRAE' || sn === 'INRA' || nm.includes("INSTITUT NATIONAL DE RECHERCHE POUR L'AGRICULTURE") || nm.includes("INSTITUT NATIONAL DE LA RECHERCHE AGRONOMIQUE"));
       const isActive = PARTNER_FILTER && PARTNER_FILTER.name === o.name && PARTNER_FILTER.country === o.country;
-      const baseStyle = isINRAE ? 'background:#e8f5ec;color:#1e5631;font-weight:600' : '';
+      const baseStyle = isT     ? 'background:#e8f0fb;color:#1a4f8a;font-weight:700'
+                      : isINRAE ? 'background:#e8f5ec;color:#1e5631;font-weight:600'
+                      : '';
       const activeStyle = isActive ? 'background:var(--it-pale);outline:2px solid var(--it);' : '';
       const picCell = o.pic
         ? `<a href="${CORDIS_ORG}${o.pic}" target="_blank" style="font-family:'Fira Code',monospace;font-size:.67rem;color:var(--it-mid);text-decoration:underline" onclick="event.stopPropagation()">${o.pic}</a>`
         : '–';
-      const nameStr = `${o.name}${isINRAE ? ' ✦ INRAE' : ''}${isActive ? ' 🔍' : ''}`;
+      const nameStr = `${o.name}${isT ? ' ✦ IT' : ''}${isINRAE ? ' ✦ INRAE' : ''}${isActive ? ' 🔍' : ''}`;
       const idx = window._partnerRows.length;
       window._partnerRows.push({ name: o.name, country: o.country });
       return `<tr style="${baseStyle};${activeStyle}cursor:pointer" title="Click to filter projects by this partner"
