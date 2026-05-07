@@ -194,7 +194,9 @@ function renderBudget() {
         .map(prog => ({
           label: PROG_LABELS[prog],
           data: years.map(y => +((byYProg[y]?.[prog] || 0) / 1e6).toFixed(2)),
-          backgroundColor: PROG_COLORS[prog],
+          backgroundColor: years.map(y => +y === currentYear
+            ? PROG_COLORS[prog].replace(/[\d.]+\)$/, '1)')
+            : PROG_COLORS[prog].replace(/[\d.]+\)$/, '0.6)')),
           borderRadius: 2,
         }))
     },

@@ -74,36 +74,53 @@ function renderTimeline() {
     const maxY = Math.max(...allProj.map(p => parseInt(p.endDate)));
     for (let y = minY; y <= maxY; y++) years.push(y);
 
-    const concurrent = years.map(y => ({
-      y,
-      count: allProj.filter(p => {
-        const s = parseInt(p.startDate);
-        const e = parseInt(p.endDate);
-        return s <= y && e >= y;
-      }).length
-    }));
+    const PROG_ORDER  = ['FP7', 'H2020', 'HORIZON'];
+    const PROG_LABELS = { 'FP7': 'FP7', 'H2020': 'H2020', 'HORIZON': 'Horizon Europe' };
+    const currentYear = new Date().getFullYear();
+    const byYProg = {};
+    years.forEach(y => { byYProg[y] = { FP7: 0, H2020: 0, HORIZON: 0 }; });
+    allProj.forEach(p => {
+      const s = parseInt(p.startDate);
+      const e = parseInt(p.endDate);
+      const prog = normProg(p);
+      for (let y = s; y <= e; y++) {
+        if (byYProg[y]) byYProg[y][prog] = (byYProg[y][prog] || 0) + 1;
+      }
+    });
 
     destroyChart('chart-concurrent');
     CHARTS['chart-concurrent'] = new Chart(document.getElementById('chart-concurrent'), {
       type: 'bar',
       data: {
-        labels: concurrent.map(d => d.y),
-        datasets: [{
-          label: 'Active projects',
-          data: concurrent.map(d => d.count),
-          backgroundColor: concurrent.map(d => d.y === new Date().getFullYear() ? activeColors().rgba(1) : activeColors().rgba(0.6)),
-          borderRadius: 3
-        }]
+        labels: years,
+        datasets: PROG_ORDER
+          .filter(prog => years.some(y => byYProg[y][prog] > 0))
+          .map(prog => ({
+            label: PROG_LABELS[prog],
+            data: years.map(y => byYProg[y][prog]),
+            backgroundColor: years.map(y => y === currentYear
+              ? PROG_COLORS[prog].replace(/[\d.]+\)$/, '1)')
+              : PROG_COLORS[prog].replace(/[\d.]+\)$/, '0.6)')),
+            borderRadius: 2,
+          }))
       },
       options: {
         responsive: true, maintainAspectRatio: true,
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => `${c.raw} active project${c.raw !== 1 ? 's' : ''}` } }
+          legend: { display: true, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
+          tooltip: {
+            callbacks: {
+              label: c => `${c.dataset.label}: ${c.raw} active project${c.raw !== 1 ? 's' : ''}`,
+              footer: items => {
+                const total = items.reduce((s, it) => s + it.raw, 0);
+                return `Total: ${total}`;
+              }
+            }
+          }
         },
         scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, title: { display: true, text: 'Active projects' } },
-          x: { title: { display: true, text: 'Year' } }
+          x: { stacked: true, title: { display: true, text: 'Year' } },
+          y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, title: { display: true, text: 'Active projects' } }
         }
       }
     });
