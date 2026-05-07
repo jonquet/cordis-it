@@ -322,16 +322,34 @@ def process(zip_bytes, prog):
         # Strip "HORIZON-" prefix for cleaner display (H2020/HE)
         scheme_short = scheme.replace("HORIZON-TMA-","").replace("HORIZON-","")
         # Map FP7 funding schemes to H2020-equivalent categories
-        # CP-* (Collaborative Projects) → RIA ; CP-CSA-Infra → INFRA ; CSA-* → CSA
+        # CP-* (Collaborative Projects)        → RIA
+        # CP-CSA-Infra                         → INFRA
+        # CSA-*, NoE (Networks of Excellence)  → CSA
+        # BSG-SME* (FP7 SME instrument)        → EIC (continuity: BSG-SME → SME Inst → EIC Accelerator)
+        # MC-* (Marie Curie FP7)               → MSCA (renamed in H2020, same instrument)
         _fp7_map = {
             "CP-TP":        "RIA",
             "CP-IP":        "RIA",
             "CP-FP":        "RIA",
             "CP":           "RIA",
             "CP-IP-SICA":   "RIA",
+            "CP-FP-SICA":   "RIA",
+            "CP-SICA":      "RIA",
             "CP-CSA-Infra": "INFRA",
             "CSA-CA":       "CSA",
             "CSA-SA":       "CSA",
+            "NoE":          "CSA",
+            "BSG-SME":      "EIC",
+            "BSG-SME-AG":   "EIC",
+            "MC-ITN":       "MSCA",
+            "MC-IEF":       "MSCA",
+            "MC-IIF":       "MSCA",
+            "MC-IOF":       "MSCA",
+            "MC-IRSES":     "MSCA",
+            "MC-CIG":       "MSCA",
+            "MC-ERG":       "MSCA",
+            "MC-IRG":       "MSCA",
+            "MC-IAPP":      "MSCA",
         }
         if prog == "FP7" and scheme in _fp7_map:
             scheme_short = _fp7_map[scheme]
@@ -390,7 +408,7 @@ def check_cordis_status(project_id):
         if "Project closed" in html or "project closed" in html:
             return "CLOSED"
         if "Project terminated" in html or "project terminated" in html:
-            return "TERMINATED"
+            return "CLOSED"   # CORDIS "terminated" = completed; folded into CLOSED for UI consistency
         if "Project open" in html or "project open" in html:
             return "SIGNED"
         return None  # Could not determine
@@ -418,20 +436,22 @@ def apply_overrides(all_projects, overrides):
 
 def check_and_update_overrides(all_projects, overrides):
     """
-    For each IT project with status=SIGNED and endDate in the past,
-    verify current status on CORDIS. Update overrides if different.
+    For each project with status=SIGNED and endDate in the past, verify current
+    status on CORDIS (the JSON dump can lag behind the live site). Update
+    overrides if different. Covers IT and INRAE projects (all_projects already
+    contains only hasIT || hasINRAE by construction of the pipeline).
     Returns True if any override was added or changed.
     """
     today = str(dt_date.today())
     suspects = [
         p for p in all_projects
-        if p.get("hasIT") and p.get("status") == "SIGNED"
+        if p.get("status") == "SIGNED"
         and p.get("endDate", "") < today
     ]
     if not suspects:
         return False
 
-    log(f"\n── Checking {len(suspects)} IT project(s) past endDate still SIGNED ──")
+    log(f"\n── Checking {len(suspects)} project(s) past endDate still SIGNED ──")
     changed = False
     for p in suspects:
         pid = p["id"]
@@ -503,6 +523,15 @@ def main():
     if overrides_changed:
         save_overrides(overrides)
         log(f"  status_overrides.json updated ({len(overrides)} override(s) total).")
+
+    # Normalise CORDIS status: TERMINATED is just an alternate label for completed projects.
+    # Fold it into CLOSED so the UI doesn't show two near-identical statuses.
+    n_term = sum(1 for p in all_projects if p.get("status") == "TERMINATED")
+    if n_term:
+        for p in all_projects:
+            if p.get("status") == "TERMINATED":
+                p["status"] = "CLOSED"
+        log(f"  Normalised {n_term} TERMINATED → CLOSED status.")
 
     # ── Summary ───────────────────────────────────────────────────────────────
     log(f"\n{'='*52}")

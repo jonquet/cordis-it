@@ -50,6 +50,17 @@ button{font-family:'Lato',sans-serif;cursor:pointer}
 .tab-btn:hover{color:#fff}
 .tab-btn.on{color:#fff;border-bottom-color:#fff}
 
+/* ── VIEW MODE SELECTOR (IT / INRAE / IT+INRAE) ── */
+.view-mode-selector{display:flex;align-items:center;padding:6px 14px 6px 0;margin-right:10px;border-right:1px solid rgba(255,255,255,.18)}
+.vm-btn{padding:4px 10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);font-family:'Fira Code',monospace;font-size:.68rem;font-weight:500;cursor:pointer;letter-spacing:.02em;transition:all .15s;white-space:nowrap}
+.vm-btn:first-child{border-radius:4px 0 0 4px}
+.vm-btn:last-child{border-radius:0 4px 4px 0}
+.vm-btn:not(:first-child){border-left:none}
+.vm-btn:hover{background:rgba(255,255,255,.14);color:#fff}
+.vm-btn.on{background:#fff;color:var(--it);border-color:#fff}
+.vm-count{opacity:.55;font-size:.62rem;margin-left:3px}
+.vm-btn.on .vm-count{opacity:.75}
+
 /* ── LAYOUT ── */
 .app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;min-height:calc(100vh - var(--header-h))}
 

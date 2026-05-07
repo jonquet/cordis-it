@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
    geography.js — Geography tab (choropleth, regions, charts)
-   All stats use IT_PROJECTS (global), NOT FILTERED.
+   All stats use VISIBLE_PROJECTS (global), NOT FILTERED.
    Region clicks still filter other tabs via REGION_FILTER.
    ══════════════════════════════════════════════════════════════ */
 
@@ -35,12 +35,12 @@ function getHighlightedCountryCodes() {
 
 function renderGeo() {
   // ── Global data for regions, stacked area ──
-  const SRC = IT_PROJECTS;
+  const SRC = VISIBLE_PROJECTS;
 
   // ── Programme-filtered data for map + top 25 ──
   const SRC_PROG = FILTERS.programme.size
-    ? IT_PROJECTS.filter(p => FILTERS.programme.has(p.programme))
-    : IT_PROJECTS;
+    ? VISIBLE_PROJECTS.filter(p => FILTERS.programme.has(p.programme))
+    : VISIBLE_PROJECTS;
 
   // Country counts from programme-filtered source
   const ccProg = {};

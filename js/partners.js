@@ -20,7 +20,7 @@ function renderPartners() {
     const regionCodes = REGIONS[REGION_FILTER] || [];
     if (REGION_FILTER === 'Other') {
       const allNamed = Object.values(REGIONS).flat();
-      IT_PROJECTS.forEach(p => p.partnerCountries.forEach(c => {
+      VISIBLE_PROJECTS.forEach(p => p.partnerCountries.forEach(c => {
         if (!allNamed.includes(c) && !allNamed.includes(CC_NORM[c] || c)) allowedCountries.add(c);
       }));
     } else {
@@ -33,7 +33,7 @@ function renderPartners() {
     const regionCodes = REGIONS[partnerRegion] || [];
     if (partnerRegion === 'Other') {
       const allNamed = Object.values(REGIONS).flat();
-      IT_PROJECTS.forEach(p => p.partnerCountries.forEach(c => {
+      VISIBLE_PROJECTS.forEach(p => p.partnerCountries.forEach(c => {
         if (!allNamed.includes(c) && !allNamed.includes(CC_NORM[c] || c)) allowedCountries.add(c);
       }));
     } else {

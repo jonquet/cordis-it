@@ -8,14 +8,14 @@ const PER_PAGE = 25;
 
 /* ── Scheme Groups ── */
 const SCHEME_GROUPS = {
-  'RIA':         s => /\bRIA\b/.test(s),
+  'RIA':         s => /\bRIA\b/.test(s) || /^CP[-\s]?(FP-)?SICA\b/.test(s),
   'IA':          s => /(?<![R])(?:^|-)\s*IA\b/.test(s),
-  'MSCA':        s => s.includes('MSCA'),
+  'MSCA':        s => s.includes('MSCA') || /^MC-/.test(s),
   'ERC':         s => s.includes('ERC'),
-  'CSA':         s => s.includes('CSA'),
-  'EIC':         s => s.includes('EIC'),
+  'CSA':         s => s.includes('CSA') || s === 'NOE',
+  'EIC':         s => s.includes('EIC') || /^BSG-SME/.test(s),
   'INFRA':       s => s === 'INFRA',
-  'JU / COFUND': s => s.includes('JU-') || s.includes('COFUND'),
+  'JU / COFUND': s => /\bJU-|\bCOFUND\b|^AG$/.test(s),
   'Other':       () => true
 };
 

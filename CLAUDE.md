@@ -20,7 +20,7 @@ Les données sont générées par un script Python à partir des exports CORDIS 
 ├── index.html                  ← shell HTML (tabs, filtres, modale) — modifier avec précaution
 ├── css/style.css               ← tous les styles
 ├── js/
-│   ├── data.js                 ← constantes, helpers, state global (IT_PROJECTS, FILTERED, FILTERS…)
+│   ├── data.js                 ← constantes, helpers, state global (VISIBLE_PROJECTS, FILTERED, FILTERS, VIEW_MODE…)
 │   ├── sidebar.js              ← filtres latéraux (buildSidebar)
 │   ├── cards.js                ← onglet Projects (renderCards)
 │   ├── partners.js             ← onglet Partners (renderPartners)
@@ -144,10 +144,15 @@ Le serveur tourne jusqu'à Ctrl+C dans le terminal.
 
 ## 📊 Données — points clés
 
-- `IT_PROJECTS` = tous les projets où `hasIT === true` (indépendant des filtres actifs)
-- `FILTERED` = sous-ensemble de `IT_PROJECTS` après application des filtres utilisateur
-- Les stats des onglets Geography et Disciplines utilisent `IT_PROJECTS` (pas `FILTERED`)
+- `ALL` = tous les projets bruts chargés depuis le JSON (`hasIT || hasINRAE`, ~826 projets)
+- `VIEW_MODE` = `'IT' | 'INRAE' | 'BOTH'` — choix utilisateur, persisté dans `localStorage` (clé `cordis-it.viewMode`)
+- `VISIBLE_PROJECTS` = sous-ensemble de `ALL` selon `VIEW_MODE` (recalculé via `applyViewMode()`)
+- `FILTERED` = sous-ensemble de `VISIBLE_PROJECTS` après application des filtres utilisateur
+- Les stats des onglets Geography et Disciplines utilisent `VISIBLE_PROJECTS` (pas `FILTERED`)
 - `schemeGroup` est calculé côté JS à partir de `fundingSchemeShort` (pas `fundingScheme`)
+- `SCHEME_GROUPS` est conçu pour ne **jamais** laisser de projet en `Other`. Le fallback `'Other': () => true` reste comme garde-fou silencieux mais doit rester vide en pratique. Si un nouveau schema apparaît dans le ZIP CORDIS et tombe dans `Other`, **étendre les règles** plutôt que d'accepter la catégorie.
+- Statut : seules deux valeurs possibles dans le JSON final → `SIGNED` (Ongoing) et `CLOSED`. `TERMINATED` est normalisé en `CLOSED` côté pipeline (post-overrides) — c'est juste un libellé alternatif CORDIS pour les projets achevés.
+- Statut live vs ZIP : le dump ZIP CORDIS est très en retard sur le site web. `prepare_data.py` vérifie sur cordis.europa.eu chaque projet `SIGNED && endDate < today` (IT **et** INRAE depuis 2026-05-06) et stocke les corrections dans `data/status_overrides.json`.
 - FP7 : tous les projets ont le statut `CLOSED`, période 2008–2014
 - EuroSciVoc : absent pour FP6 et antérieur, présent pour FP7/H2020/HE
 
@@ -155,7 +160,10 @@ Le serveur tourne jusqu'à Ctrl+C dans le terminal.
 
 ## 🐛 Pièges connus
 
-- Ne jamais utiliser `FILTERED` pour calculer les comptages de l'onglet Disciplines → utiliser `IT_PROJECTS` + `_domDescendants`
+- Ne jamais utiliser `FILTERED` pour calculer les comptages de l'onglet Disciplines → utiliser `VISIBLE_PROJECTS` + `_domDescendants`
+- À chaque changement de `VIEW_MODE`, invalider `window._domDescendants` et `window._domToIds` (déjà fait dans `applyViewMode()`)
 - `topicToCat()` : toujours matcher sur les parties exactes du code topic (split sur `-`) pour éviter les faux positifs
-- `schemeGroup()` doit recevoir `fundingSchemeShort` et non `fundingScheme` brut (les codes FP7 comme `CP-TP` ne matchent pas sinon)
+- `schemeGroup()` doit recevoir `fundingSchemeShort` et non `fundingScheme` brut (les codes FP7 comme `CP-TP` ne matchent pas sinon). Pour les schemas HORIZON (préfixe stripé), travailler sur la valeur stripée (ex. `AG` et non `HORIZON-AG`).
+- Si on étend `_fp7_map` dans `prepare_data.py`, étendre **aussi** `SCHEME_GROUPS` côté JS (filet de sécurité pour les ZIP non encore régénérés). Et inversement.
+- `buildSidebar()` reconstruit les checkboxes — appeler `syncSidebarCheckboxes()` en fin pour re-cocher les filtres actifs (sinon les `FILTERS` restent en mémoire mais visuellement décochés après changement de `VIEW_MODE`).
 - Toujours vérifier la balance accolades/crochets après toute modification JS (parser string-aware si doute)

@@ -2,14 +2,50 @@
    app.js — Global state, load, init, apply, events
    ══════════════════════════════════════════════════════════════ */
 
-let ALL = [], IT_PROJECTS = [], FILTERED = [];
+let ALL = [], VISIBLE_PROJECTS = [], FILTERED = [];
 let FILTERS = { programme: new Set(), itRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
 let SEARCH = '', SORT = 'startDate-desc';
 let DOMAIN_FILTERS = [], DOMAIN_OPERATOR = 'OR';
 let REGION_FILTER = null, PARTNER_FILTER = null, PARTNER_PAGE = 0;
 let CHARTS = {};
+let VIEW_MODE = 'IT';   // 'IT' | 'INRAE' | 'BOTH'
 
 function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
+
+/* ── View mode ── */
+function applyViewMode({ rebuild = true } = {}) {
+  if (VIEW_MODE === 'IT')         VISIBLE_PROJECTS = ALL.filter(p => p.hasIT);
+  else if (VIEW_MODE === 'INRAE') VISIBLE_PROJECTS = ALL.filter(p => p.hasINRAE);
+  else                            VISIBLE_PROJECTS = ALL.filter(p => p.hasIT || p.hasINRAE);
+
+  document.querySelectorAll('.vm-btn').forEach(b =>
+    b.classList.toggle('on', b.dataset.mode === VIEW_MODE));
+
+  if (rebuild) {
+    delete window._domDescendants;
+    delete window._domToIds;
+    buildKPIs();
+    buildSidebar();
+    apply();
+  }
+}
+
+function setViewMode(mode) {
+  if (mode === VIEW_MODE) return;
+  VIEW_MODE = mode;
+  try { localStorage.setItem('cordis-it.viewMode', mode); } catch (e) {}
+  applyViewMode();
+}
+
+function buildViewModeCounts() {
+  const cIT    = ALL.filter(p => p.hasIT).length;
+  const cINRAE = ALL.filter(p => p.hasINRAE).length;
+  const cBOTH  = ALL.filter(p => p.hasIT || p.hasINRAE).length;
+  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = `(${n})`; };
+  set('vm-count-IT', cIT);
+  set('vm-count-INRAE', cINRAE);
+  set('vm-count-BOTH', cBOTH);
+}
 
 /* ── Load data ── */
 async function load() {
@@ -35,7 +71,11 @@ async function load() {
       if (!p.fundingSchemeShort) p.fundingSchemeShort = (p.fundingScheme || '').replace('HORIZON-TMA-', '').replace('HORIZON-', '');
       p.schemeGroup = schemeGroup(p.fundingSchemeShort || p.fundingScheme || '');
     });
-    IT_PROJECTS = ALL.filter(p => p.hasIT);
+    try {
+      const stored = localStorage.getItem('cordis-it.viewMode');
+      if (stored && ['IT','INRAE','BOTH'].includes(stored)) VIEW_MODE = stored;
+    } catch (e) {}
+    applyViewMode({ rebuild: false });
     init();
   } catch (e) {
     document.getElementById('grid').innerHTML =
@@ -45,6 +85,7 @@ async function load() {
 
 /* ── Init ── */
 function init() {
+  buildViewModeCounts();
   buildKPIs();
   buildSidebar();
   apply();
@@ -59,10 +100,10 @@ function init() {
 
 /* ── KPIs ── */
 function buildKPIs() {
-  const n = IT_PROJECTS.length;
-  const signed = IT_PROJECTS.filter(p => p.status === 'SIGNED').length;
-  const budget = IT_PROJECTS.reduce((s, p) => s + (p.itEcContribution || 0), 0) / 1e6;
-  const countries = new Set(IT_PROJECTS.flatMap(p => p.partnerCountries)).size;
+  const n = VISIBLE_PROJECTS.length;
+  const signed = VISIBLE_PROJECTS.filter(p => p.status === 'SIGNED').length;
+  const budget = VISIBLE_PROJECTS.reduce((s, p) => s + (p.itEcContribution || 0), 0) / 1e6;
+  const countries = new Set(VISIBLE_PROJECTS.flatMap(p => p.partnerCountries)).size;
   document.getElementById('hdr-kpis').innerHTML = `
     <div class="kpi"><span class="kpi-val">${n}</span><span class="kpi-lbl">IT projects</span></div>
     <div class="kpi"><span class="kpi-val">${signed}</span><span class="kpi-lbl">Ongoing</span></div>
@@ -73,7 +114,7 @@ function buildKPIs() {
 /* ── Filter + Sort ── */
 function apply() {
   const q = SEARCH.toLowerCase().trim();
-  FILTERED = IT_PROJECTS.filter(p => {
+  FILTERED = VISIBLE_PROJECTS.filter(p => {
     if (q) {
       const partnerNames = p.partners ? p.partners.map(o => `${o.name || ''} ${o.shortName || ''}`).join(' ') : '';
       const searchable = `${p.acronym} ${p.title} ${p.keywords} ${p.objective} ${p.topics} ${p.fundingScheme} ${p.legalBasis} ${partnerNames}`.toLowerCase();
@@ -131,7 +172,7 @@ function apply() {
 }
 
 function renderAll() {
-  const n = FILTERED.length, tot = IT_PROJECTS.length;
+  const n = FILTERED.length, tot = VISIBLE_PROJECTS.length;
   document.getElementById('rcount').innerHTML =
     `<strong>${n}</strong> IT project${n !== 1 ? 's' : ''} of ${tot}`;
   renderActiveFilters();

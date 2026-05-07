@@ -14,9 +14,9 @@ function getDomTree() {
 /* ── Build EuroSciVoc tree ── */
 function buildDomainTree() {
   const root = { name: 'root', children: [], projects: 0, orgs: 0, depth: 0, path: [] };
-  const hasAnyScivoc = IT_PROJECTS.some(p => p.euroSciVoc && p.euroSciVoc.length > 0);
+  const hasAnyScivoc = VISIBLE_PROJECTS.some(p => p.euroSciVoc && p.euroSciVoc.length > 0);
 
-  IT_PROJECTS.forEach(p => {
+  VISIBLE_PROJECTS.forEach(p => {
     const svocs = p.euroSciVoc && p.euroSciVoc.length ? p.euroSciVoc : null;
     if (svocs) {
       const seen = new Set();
@@ -74,7 +74,7 @@ function renderDisciplines() {
     function collectIds(node) {
       const key = node.path.join('|||');
       if (!domDescendants[key]) domDescendants[key] = new Set();
-      IT_PROJECTS.forEach(p => {
+      VISIBLE_PROJECTS.forEach(p => {
         const pkey = p.id + '|' + p.programme;
         (p.euroSciVoc || []).forEach(sv => {
           if (sv.path && (sv.path.includes('/' + node.name + '/') || sv.path.endsWith('/' + node.name)))
@@ -346,7 +346,7 @@ function renderSelPanel() {
     };
     return DOMAIN_OPERATOR === 'AND' ? DOMAIN_FILTERS.every(matchOne) : DOMAIN_FILTERS.some(matchOne);
   }
-  const matchingProjects = IT_PROJECTS.filter(matchesDisciplines);
+  const matchingProjects = VISIBLE_PROJECTS.filter(matchesDisciplines);
   const projCount = matchingProjects.length;
   const orgSet = new Set();
   matchingProjects.forEach(p => (p.partners || []).forEach(o => {
