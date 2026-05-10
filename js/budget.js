@@ -3,12 +3,15 @@
    ══════════════════════════════════════════════════════════════ */
 
 function renderBudget() {
+  // BOTH (intersection) and ALL (union) both sum IT+INRAE budgets
+  const isMixed = VIEW_MODE === 'BOTH' || VIEW_MODE === 'ALL';
+
   // Per-project budget value depending on active VIEW_MODE
-  const pBudget = p => VIEW_MODE === 'BOTH'
+  const pBudget = p => isMixed
     ? (p.itEcContribution || 0) + (p.inraeEcContribution || 0)
     : (p[activeBudgetField()] || 0);
 
-  const lbl = activeColors().label;   // 'IT' | 'INRAE' | 'IT + INRAE'
+  const lbl = activeColors().label;   // 'IT' | 'INRAE' | 'IT & INRAE (shared)' | 'All projects'
 
   // ── Aggregate stats on combined-or-single budget ──
   const valued = FILTERED.map(p => ({ p, v: pBudget(p) })).filter(x => x.v > 0);
@@ -46,15 +49,15 @@ function renderBudget() {
     : 0;
 
   // ── Stats cards ──
-  const totalLbl = VIEW_MODE === 'BOTH' ? 'Total EU Contribution' : `Total ${lbl} EU Contribution`;
-  const knownLbl = VIEW_MODE === 'BOTH' ? 'with known budget' : `with known ${lbl} budget`;
-  const totalSub = VIEW_MODE === 'BOTH' ? '<div class="stat-sub">IT+INRAE combined</div>' : '';
+  const totalLbl = isMixed ? 'Total EU Contribution' : `Total ${lbl} EU Contribution`;
+  const knownLbl = isMixed ? 'with known budget' : `with known ${lbl} budget`;
+  const totalSub = isMixed ? '<div class="stat-sub">IT+INRAE combined</div>' : '';
 
   let cardsHTML = `
     <div class="stat-card"><div class="stat-val">${FILTERED.length}</div><div class="stat-lbl">Projects</div><div class="stat-sub">${valued.length} ${knownLbl}</div></div>
     <div class="stat-card"><div class="stat-val">${fmtM(total)}</div><div class="stat-lbl">${totalLbl}</div>${totalSub}</div>`;
 
-  if (VIEW_MODE === 'BOTH') {
+  if (isMixed) {
     const totalIT    = FILTERED.reduce((s, p) => s + (p.itEcContribution    || 0), 0);
     const totalINRAE = FILTERED.reduce((s, p) => s + (p.inraeEcContribution || 0), 0);
     cardsHTML += `
@@ -71,7 +74,7 @@ function renderBudget() {
   document.getElementById('budget-stats').innerHTML = cardsHTML;
 
   // ── Chart titles (mode-dependent) ──
-  const titlePrefix = VIEW_MODE === 'BOTH' ? '' : lbl + ' ';
+  const titlePrefix = isMixed ? '' : lbl + ' ';
   document.getElementById('ct-hist').textContent   = `${titlePrefix}Grants Distribution (k€)`;
   document.getElementById('ct-scheme').textContent = `${titlePrefix}Budget by Funding Type`;
   document.getElementById('ct-time').textContent   = `${titlePrefix}Annual Budget (prorata over project duration)`;
@@ -94,7 +97,7 @@ function renderBudget() {
   }
 
   let histDatasets, hasAny;
-  if (VIEW_MODE === 'BOTH') {
+  if (isMixed) {
     const itValues    = FILTERED.filter(p => p.hasIT).map(p => p.itEcContribution || 0).filter(x => x > 0);
     const inraeValues = FILTERED.filter(p => p.hasINRAE).map(p => p.inraeEcContribution || 0).filter(x => x > 0);
     histDatasets = [
@@ -132,12 +135,12 @@ function renderBudget() {
     options: {
       responsive: true, maintainAspectRatio: true,
       plugins: {
-        legend: { display: VIEW_MODE === 'BOTH', position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
+        legend: { display: isMixed, position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } },
         tooltip: { callbacks: { title: t => t[0].label, label: c => `${c.dataset.label}: ${c.raw} project${c.raw !== 1 ? 's' : ''}` } }
       },
       scales: {
-        x: { stacked: VIEW_MODE === 'BOTH' },
-        y: { stacked: VIEW_MODE === 'BOTH', beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
+        x: { stacked: isMixed },
+        y: { stacked: isMixed, beginAtZero: true, ticks: { stepSize: 1, precision: 0 } }
       }
     },
     plugins: nobudgetPlugin

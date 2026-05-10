@@ -3,26 +3,34 @@
    ══════════════════════════════════════════════════════════════ */
 
 let ALL = [], VISIBLE_PROJECTS = [], FILTERED = [];
-let FILTERS = { programme: new Set(), itRole: new Set(), inraeRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
+let FILTERS = { scope: new Set(['IT']), programme: new Set(), itRole: new Set(), inraeRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
 let SEARCH = '', SORT = 'startDate-desc';
 let DOMAIN_FILTERS = [], DOMAIN_OPERATOR = 'OR';
 let REGION_FILTER = null, PARTNER_FILTER = null, PARTNER_PAGE = 0;
 let CHARTS = {};
-let VIEW_MODE = 'IT';   // 'IT' | 'INRAE' | 'BOTH'
+let VIEW_MODE = 'IT';   // derived from FILTERS.scope: 'IT' | 'INRAE' | 'BOTH' (intersection) | 'ALL' (union)
 
 function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
 
-/* ── View mode ── */
+/* ── View mode (derived from FILTERS.scope) ── */
+function deriveViewMode() {
+  const it = FILTERS.scope.has('IT');
+  const inr = FILTERS.scope.has('INRAE');
+  if (it && inr) return 'BOTH';
+  if (it) return 'IT';
+  if (inr) return 'INRAE';
+  return 'ALL';
+}
+
 function applyViewMode({ rebuild = true } = {}) {
+  VIEW_MODE = deriveViewMode();
   if (VIEW_MODE === 'IT')         VISIBLE_PROJECTS = ALL.filter(p => p.hasIT);
   else if (VIEW_MODE === 'INRAE') VISIBLE_PROJECTS = ALL.filter(p => p.hasINRAE);
+  else if (VIEW_MODE === 'BOTH')  VISIBLE_PROJECTS = ALL.filter(p => p.hasIT && p.hasINRAE);
   else                            VISIBLE_PROJECTS = ALL.filter(p => p.hasIT || p.hasINRAE);
 
-  document.documentElement.classList.remove('mode-IT', 'mode-INRAE', 'mode-BOTH');
+  document.documentElement.classList.remove('mode-IT', 'mode-INRAE', 'mode-BOTH', 'mode-ALL');
   document.documentElement.classList.add('mode-' + VIEW_MODE);
-
-  document.querySelectorAll('.vm-btn').forEach(b =>
-    b.classList.toggle('on', b.dataset.mode === VIEW_MODE));
 
   if (rebuild) {
     delete window._domDescendants;
@@ -33,23 +41,16 @@ function applyViewMode({ rebuild = true } = {}) {
   }
 }
 
-function setViewMode(mode) {
-  if (mode === VIEW_MODE) return;
-  if (mode === 'IT')    FILTERS.inraeRole.clear();
-  if (mode === 'INRAE') FILTERS.itRole.clear();
-  VIEW_MODE = mode;
-  try { localStorage.setItem('cordis-it.viewMode', mode); } catch (e) {}
-  applyViewMode();
+function persistScope() {
+  try { localStorage.setItem('cordis-it.scope', JSON.stringify([...FILTERS.scope])); } catch (e) {}
 }
 
-function buildViewModeCounts() {
-  const cIT    = ALL.filter(p => p.hasIT).length;
-  const cINRAE = ALL.filter(p => p.hasINRAE).length;
-  const cBOTH  = ALL.filter(p => p.hasIT || p.hasINRAE).length;
-  const set = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = `(${n})`; };
-  set('vm-count-IT', cIT);
-  set('vm-count-INRAE', cINRAE);
-  set('vm-count-BOTH', cBOTH);
+function onScopeChange() {
+  // Clear orphan role filters when their entity is no longer in scope
+  if (!FILTERS.scope.has('IT'))    FILTERS.itRole.clear();
+  if (!FILTERS.scope.has('INRAE')) FILTERS.inraeRole.clear();
+  persistScope();
+  applyViewMode();
 }
 
 /* ── Load data ── */
@@ -77,8 +78,19 @@ async function load() {
       p.schemeGroup = schemeGroup(p.fundingSchemeShort || p.fundingScheme || '');
     });
     try {
-      const stored = localStorage.getItem('cordis-it.viewMode');
-      if (stored && ['IT','INRAE','BOTH'].includes(stored)) VIEW_MODE = stored;
+      const raw = localStorage.getItem('cordis-it.scope');
+      let scope = null;
+      if (raw) {
+        try { const arr = JSON.parse(raw); if (Array.isArray(arr)) scope = arr.filter(s => s === 'IT' || s === 'INRAE'); } catch (_) {}
+      }
+      if (!scope) {
+        const legacy = localStorage.getItem('cordis-it.viewMode');
+        if (legacy === 'IT')         scope = ['IT'];
+        else if (legacy === 'INRAE') scope = ['INRAE'];
+        else if (legacy === 'BOTH')  scope = [];        // legacy union → ALL
+        else                         scope = ['IT'];     // default
+      }
+      FILTERS.scope = new Set(scope);
     } catch (e) {}
     applyViewMode({ rebuild: false });
     init();
@@ -90,7 +102,6 @@ async function load() {
 
 /* ── Init ── */
 function init() {
-  buildViewModeCounts();
   buildKPIs();
   buildSidebar();
   apply();
@@ -108,7 +119,7 @@ function buildKPIs() {
   const n = VISIBLE_PROJECTS.length;
   const signed = VISIBLE_PROJECTS.filter(p => p.status === 'SIGNED').length;
   let budget, projLabel, budgetLabel;
-  if (VIEW_MODE === 'BOTH') {
+  if (VIEW_MODE === 'BOTH' || VIEW_MODE === 'ALL') {
     budget = VISIBLE_PROJECTS.reduce((s, p) => s + (p.itEcContribution || 0) + (p.inraeEcContribution || 0), 0) / 1e6;
     projLabel   = 'Projects';
     budgetLabel = 'Total budget M€';
@@ -179,7 +190,7 @@ function apply() {
     let va, vb;
     if (sk === 'startDate') { va = a.startDate || ''; vb = b.startDate || ''; }
     else if (sk === 'budget') {
-      if (VIEW_MODE === 'BOTH') {
+      if (VIEW_MODE === 'BOTH' || VIEW_MODE === 'ALL') {
         va = (a.itEcContribution || 0) + (a.inraeEcContribution || 0);
         vb = (b.itEcContribution || 0) + (b.inraeEcContribution || 0);
       } else {
@@ -320,20 +331,26 @@ function bindEvents() {
     if (e.target.type !== 'checkbox') return;
     const k = e.target.dataset.key;
     e.target.checked ? FILTERS[k].add(e.target.value) : FILTERS[k].delete(e.target.value);
-    apply();
+    if (k === 'scope') {
+      onScopeChange();
+    } else {
+      apply();
+    }
   });
 
   document.getElementById('btn-reset').addEventListener('click', () => {
     SEARCH = ''; SORT = 'startDate-desc'; DOMAIN_FILTERS = []; DOMAIN_OPERATOR = 'OR';
     REGION_FILTER = null; PARTNER_FILTER = null;
     Object.values(FILTERS).forEach(s => s.clear());
+    FILTERS.scope = new Set(['IT']);   // restore default scope
+    persistScope();
     document.getElementById('search').value = '';
     document.getElementById('sort').value = 'startDate-desc';
     document.getElementById('partner-region').value = '';
     document.getElementById('partner-type').value = '';
     document.querySelectorAll('.sidebar input[type=checkbox]').forEach(cb => cb.checked = false);
     PARTNER_PAGE = 0;
-    apply();
+    applyViewMode();
   });
 
   ['partner-type'].forEach(id => {

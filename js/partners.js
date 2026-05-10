@@ -6,6 +6,7 @@ function renderPartners() {
   const colEl = document.getElementById('partners-proj-col');
   if (colEl) colEl.textContent = VIEW_MODE === 'IT'    ? 'Projects with IT'
                               :  VIEW_MODE === 'INRAE' ? 'Projects with INRAE'
+                              :  VIEW_MODE === 'BOTH'  ? 'Projects with IT & INRAE'
                               :                          'Projects';
 
   const q = SEARCH.toLowerCase().trim();

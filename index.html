@@ -6,8 +6,19 @@
 <title>INRAE Transfert · EU Projects</title>
 <script>
   try {
-    var m = localStorage.getItem('cordis-it.viewMode');
-    document.documentElement.classList.add('mode-' + (['IT','INRAE','BOTH'].includes(m) ? m : 'IT'));
+    var raw = localStorage.getItem('cordis-it.scope');
+    var scope = null;
+    if (raw) { try { var arr = JSON.parse(raw); if (Array.isArray(arr)) scope = arr; } catch(_) {} }
+    if (!scope) {
+      var legacy = localStorage.getItem('cordis-it.viewMode');
+      if (legacy === 'IT')         scope = ['IT'];
+      else if (legacy === 'INRAE') scope = ['INRAE'];
+      else if (legacy === 'BOTH')  scope = [];          // legacy union → ALL
+      else                         scope = ['IT'];       // default
+    }
+    var hasIT = scope.indexOf('IT') >= 0, hasIN = scope.indexOf('INRAE') >= 0;
+    var mode = (hasIT && hasIN) ? 'BOTH' : hasIT ? 'IT' : hasIN ? 'INRAE' : 'ALL';
+    document.documentElement.classList.add('mode-' + mode);
   } catch(e) { document.documentElement.classList.add('mode-IT'); }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,11 +40,6 @@
     <div class="hdr-kpis" id="hdr-kpis"></div>
   </div>
   <nav class="tab-bar">
-    <div class="view-mode-selector" role="group" aria-label="Scope">
-      <button class="vm-btn on" data-mode="IT"    onclick="setViewMode('IT')">IT <span class="vm-count" id="vm-count-IT"></span></button>
-      <button class="vm-btn"    data-mode="INRAE" onclick="setViewMode('INRAE')">INRAE <span class="vm-count" id="vm-count-INRAE"></span></button>
-      <button class="vm-btn"    data-mode="BOTH"  onclick="setViewMode('BOTH')">IT+INRAE <span class="vm-count" id="vm-count-BOTH"></span></button>
-    </div>
     <button class="tab-btn on" data-tab="projects">📋 Projects</button>
     <button class="tab-btn" data-tab="partners">🤝 Partners</button>
     <button class="tab-btn" data-tab="geography">🌍 Geography</button>
@@ -60,6 +66,11 @@
       </select>
     </div>
     <button class="btn-reset" id="btn-reset" style="margin-bottom:4px">↺ Reset filters</button>
+    <hr class="fr">
+    <div class="fb">
+      <span class="ft">Scope</span>
+      <div class="cl" id="f-scope"></div>
+    </div>
     <hr class="fr">
     <div class="fb">
       <span class="ft">Programme</span>
@@ -285,7 +296,7 @@
       <!-- MISSION -->
       <div class="about-sec">
         <div class="about-sec-title">Mission</div>
-        <p class="about-text">This observatory tracks all European research projects across FP7, H2020, and Horizon Europe involving <strong>INRAE Transfert (IT)</strong> or <strong>INRAE</strong>. Use the IT / INRAE / IT+INRAE selector at the top to switch the active scope. The tool monitors project distribution, partner networks, geographic reach, scientific disciplines, and budget allocation across EU research programmes.</p>
+        <p class="about-text">This observatory tracks all European research projects across FP7, H2020, and Horizon Europe involving <strong>INRAE Transfert (IT)</strong> or <strong>INRAE</strong>. Use the <strong>Scope</strong> filter in the left sidebar to choose which entity (or both) to look at. The tool monitors project distribution, partner networks, geographic reach, scientific disciplines, and budget allocation across EU research programmes.</p>
       </div>
 
       <!-- DATA SOURCES -->
@@ -347,7 +358,7 @@
           <div class="about-tab-card">
             <div class="about-tab-icon">💶</div>
             <div class="about-tab-name">Budget</div>
-            <div class="about-tab-tip">Shows the active scope's EU contribution (IT, INRAE, or summed in IT+INRAE mode). The annual chart prorates each grant over the project duration. All three charts respond to sidebar filters.</div>
+            <div class="about-tab-tip">Shows the active scope's EU contribution (IT, INRAE, or summed when both/neither are selected). The annual chart prorates each grant over the project duration. All three charts respond to sidebar filters.</div>
           </div>
           <div class="about-tab-card">
             <div class="about-tab-icon">📅</div>
@@ -364,8 +375,8 @@
           <dt>Annual budget prorata</dt>
           <dd>Each project's EU contribution (for the active scope) is distributed evenly over its duration. A project spanning 3.5 years with €700k contribution yields ~€200k/year. Years partially covered receive a proportional share. This allows meaningful cross-year comparisons despite uneven project starts and ends.</dd>
 
-          <dt>Scope modes (IT / INRAE / IT+INRAE)</dt>
-          <dd>The selector at the top of the page controls which projects are visible. <strong>IT</strong> shows projects where INRAE Transfert SAS is a partner. <strong>INRAE</strong> shows projects where the broader INRAE research institute participates (typically a much larger portfolio). <strong>IT+INRAE</strong> shows the union — projects involving either entity. In IT+INRAE mode, budget figures are summed (IT + INRAE combined). Each project's card shows up to three budget chips: total EU budget, IT contribution, INRAE contribution — only the relevant ones are displayed.</dd>
+          <dt>Scope filter (IT / INRAE)</dt>
+          <dd>The <strong>Scope</strong> filter in the left sidebar controls which projects are visible. <strong>IT only</strong> (default): projects where INRAE Transfert SAS is a partner. <strong>INRAE only</strong>: projects where the broader INRAE research institute participates (typically a much larger portfolio). <strong>Both checked</strong>: only projects shared by IT and INRAE (intersection). <strong>Neither checked</strong>: every project involving either entity (union of all). When both or neither are selected, budget figures are summed (IT + INRAE combined). Each project's card shows up to three budget chips: total EU budget, IT contribution, INRAE contribution — only the relevant ones are displayed.</dd>
 
           <dt>FP7 → funding type mapping</dt>
           <dd>FP7 funding scheme codes are normalised to categories equivalent to H2020/HE types to enable cross-programme budget breakdowns. Mappings include: <code>CP</code>, <code>CP-TP</code>, <code>CP-IP</code> → RIA · <code>CP-*-SICA</code> → RIA · <code>MC-*</code> (Marie Curie) → MSCA · <code>ERC-*</code> → ERC · <code>BSG-SME*</code> → EIC · <code>NoE</code> (Networks of Excellence) → CSA · <code>HORIZON-AG/PARC</code> → COFUND.</dd>

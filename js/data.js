@@ -152,7 +152,8 @@ const PROG_COLORS = {
   'HORIZON': 'rgba(30,86,49,.8)',
 };
 
-/* ── Active scope helpers (driven by VIEW_MODE, defined in app.js) ── */
+/* ── Active scope helpers (driven by VIEW_MODE, defined in app.js) ──
+   VIEW_MODE values: 'IT' | 'INRAE' | 'BOTH' (intersection) | 'ALL' (union, no scope ticked) */
 function activeColors() {
   if (VIEW_MODE === 'INRAE') {
     return { main: 'var(--inrae)', mid: 'var(--inrae-mid)', light: 'var(--inrae-light)', pale: 'var(--inrae-pale)',
@@ -160,7 +161,11 @@ function activeColors() {
   }
   if (VIEW_MODE === 'BOTH') {
     return { main: 'var(--both)', mid: 'var(--both-mid)', light: 'var(--both-mid)', pale: 'var(--both-pale)',
-             rgba: a => `rgba(39,85,98,${a})`, label: 'IT + INRAE' };
+             rgba: a => `rgba(39,85,98,${a})`, label: 'IT & INRAE (shared)' };
+  }
+  if (VIEW_MODE === 'ALL') {
+    return { main: 'var(--both)', mid: 'var(--both-mid)', light: 'var(--both-mid)', pale: 'var(--both-pale)',
+             rgba: a => `rgba(39,85,98,${a})`, label: 'All projects' };
   }
   return   { main: 'var(--it)', mid: 'var(--it-mid)', light: 'var(--it-light)', pale: 'var(--it-pale)',
              rgba: a => `rgba(37,99,171,${a})`, label: 'IT' };
@@ -168,13 +173,13 @@ function activeColors() {
 
 function activeBudgetField() {
   if (VIEW_MODE === 'INRAE') return 'inraeEcContribution';
-  if (VIEW_MODE === 'BOTH')  return null;
+  if (VIEW_MODE === 'BOTH' || VIEW_MODE === 'ALL') return null;
   return 'itEcContribution';
 }
 
 function activeRoleField() {
   if (VIEW_MODE === 'INRAE') return 'inraeRole';
-  if (VIEW_MODE === 'BOTH')  return null;
+  if (VIEW_MODE === 'BOTH' || VIEW_MODE === 'ALL') return null;
   return 'itRole';
 }
 

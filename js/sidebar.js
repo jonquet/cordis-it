@@ -3,6 +3,8 @@
    ══════════════════════════════════════════════════════════════ */
 
 function buildSidebar() {
+  buildScopeList();
+
   buildList('f-programme', 'programme', [...new Set(VISIBLE_PROJECTS.map(p => p.programme))].sort(), p => p.programme);
 
   // Scheme groups — sorted by project count desc, "Other" only shown if non-empty
@@ -25,6 +27,19 @@ function buildSidebar() {
   buildList('f-country', 'country', ctries, p => p.partnerCountries, cc => flag(cc) + ' ' + (CC_NAMES[cc] || CC_NAMES[CC_NORM[cc]] || cc));
 
   syncSidebarCheckboxes();
+}
+
+/* Scope filter — based on ALL (counts are stable across scope changes) */
+function buildScopeList() {
+  const el = document.getElementById('f-scope');
+  if (!el) return;
+  const cIT    = ALL.filter(p => p.hasIT).length;
+  const cINRAE = ALL.filter(p => p.hasINRAE).length;
+  el.innerHTML = `
+    <label class="ci"><input type="checkbox" data-key="scope" value="IT">
+    IT<span class="cc">${cIT}</span></label>
+    <label class="ci"><input type="checkbox" data-key="scope" value="INRAE">
+    INRAE<span class="cc">${cINRAE}</span></label>`;
 }
 
 function buildList(elId, key, vals, getter, labelFn) {
