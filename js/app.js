@@ -106,6 +106,10 @@ function init() {
   buildSidebar();
   apply();
   bindEvents();
+  // Added Value tab is filter-independent: render once at init, re-render only on its internal scope toggle
+  if (typeof renderAddedValue === 'function') renderAddedValue();
+  // About tab is static content: just populate dynamic fields once
+  if (typeof renderAbout === 'function') renderAbout();
 
   const el = document.getElementById('update-date');
   if (el) {
@@ -258,7 +262,7 @@ function renderActiveFilters() {
   ));
 
   [...FILTERS.schemeGroup].forEach(v => addPill(
-    `Funding: ${v}`, '',
+    `Action: ${v}`, '',
     () => { FILTERS.schemeGroup.delete(v); syncCheckbox('schemeGroup', v, false); apply(); }
   ));
 
