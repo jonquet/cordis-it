@@ -106,8 +106,8 @@ function init() {
   buildSidebar();
   apply();
   bindEvents();
-  // Added Value tab is filter-independent: render once at init, re-render only on its internal scope toggle
-  if (typeof renderAddedValue === 'function') renderAddedValue();
+  // Stats tab is filter-independent: render once at init, re-render only on its internal scope toggle
+  if (typeof renderStats === 'function') renderStats();
   // About tab is static content: just populate dynamic fields once
   if (typeof renderAbout === 'function') renderAbout();
 

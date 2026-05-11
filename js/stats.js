@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════
-   added-value.js — Added Value Analysis tab
+   stats.js — Statistical Analysis tab
    Port of scripts/analyze_it_value.py to client side.
    Independent of sidebar filters: reads ALL directly.
    IT alone population intentionally omitted (display-only choice).
@@ -447,11 +447,11 @@ function _avSetScope(scope) {
   if (scope !== 'RIA' && scope !== 'ALL') return;
   if (scope === AV_SCOPE) return;
   AV_SCOPE = scope;
-  renderAddedValue();
+  renderStats();
 }
 
-function renderAddedValue() {
-  const panel = document.getElementById('tab-added-value');
+function renderStats() {
+  const panel = document.getElementById('tab-stats');
   if (!panel || !Array.isArray(ALL) || !ALL.length) return;
 
   // Destroy existing charts (panel.innerHTML is about to be replaced)
@@ -470,7 +470,7 @@ function renderAddedValue() {
   panel.innerHTML = `
     <div class="av-bandeau">
       <div class="av-bandeau-row">
-        <h2 class="av-title">Added Value Analysis</h2>
+        <h2 class="av-title">Statistical Analysis</h2>
         <div class="av-toggle-group">
           <span class="av-toggle-label">Scope</span>
           <button class="av-toggle ${AV_SCOPE === 'RIA' ? 'on' : ''}" onclick="_avSetScope('RIA')">RIA only</button>

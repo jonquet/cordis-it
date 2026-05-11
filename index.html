@@ -47,7 +47,7 @@
     <button class="tab-btn" data-tab="budget">💶 Budget</button>
     <button class="tab-btn" data-tab="timeline">📅 Timeline</button>
     <div style="margin-left:auto;display:flex;align-items:center;gap:0;padding:0 12px 0 0">
-      <button class="tab-btn tab-btn-discrete" data-tab="added-value">∑ added value</button>
+      <button class="tab-btn tab-btn-discrete" data-tab="stats">∑ stats</button>
       <button class="tab-btn tab-btn-discrete" data-tab="about">ⓘ about</button>
       <span style="font-family:'Fira Code',monospace;font-size:.62rem;color:rgba(255,255,255,.45);padding:0 0 0 10px;margin-left:10px;border-left:1px solid rgba(255,255,255,.18)" id="update-date"></span>
     </div>
@@ -248,8 +248,8 @@
       </div>
     </div>
 
-    <!-- TAB: ADDED VALUE -->
-    <div class="tab-panel" id="tab-added-value"></div>
+    <!-- TAB: STATS -->
+    <div class="tab-panel" id="tab-stats"></div>
 
     <!-- TAB: TIMELINE -->
     <div class="tab-panel" id="tab-timeline">
@@ -362,7 +362,7 @@
               </div>
               <div class="about-tab-card">
                 <div class="about-tab-icon">📊</div>
-                <div class="about-tab-name">Added Value</div>
+                <div class="about-tab-name">Stats</div>
                 <div class="about-tab-tip">Statistical comparison of INRAE projects with vs without IT participation (Mann-Whitney U + descriptive stats). Independent of sidebar filters. Default scope: RIA only (most representative scheme group); toggle to all schemes if needed.</div>
               </div>
               <div class="about-tab-card">
@@ -455,7 +455,7 @@
 <script src="js/timeline.js"></script>
 <script src="js/modal.js"></script>
 <script src="js/about.js"></script>
-<script src="js/added-value.js"></script>
+<script src="js/stats.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
