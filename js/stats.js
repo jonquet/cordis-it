@@ -244,11 +244,11 @@ function _avRenderMasterTable(popAlone, popWith) {
   const pN = _avMannWhitneyU(ma.map(m => m.nNonEu), mw.map(m => m.nNonEu));
   addRow('Non-EU27 countries — median', aN.median, bN.median, v => _avFmtNum(v, 1), pN);
 
-  // Distinct activity types — median
-  const aT = _avAgg(ma.map(m => m.nActivityTypes), ['median']);
-  const bT = _avAgg(mw.map(m => m.nActivityTypes), ['median']);
+  // Distinct activity types — mean (discrete 1–5 range: median saturates, mean is more informative)
+  const aT = _avAgg(ma.map(m => m.nActivityTypes), ['mean']);
+  const bT = _avAgg(mw.map(m => m.nActivityTypes), ['mean']);
   const pT = _avMannWhitneyU(ma.map(m => m.nActivityTypes), mw.map(m => m.nActivityTypes));
-  addRow('Distinct activity types — median', aT.median, bT.median, v => _avFmtNum(v, 1), pT);
+  addRow('Distinct activity types — mean', aT.mean, bT.mean, v => _avFmtNum(v, 2), pT);
 
   // Duration months — median only
   const aD = _avAgg(ma.map(m => m.durationMonths), ['median']);
