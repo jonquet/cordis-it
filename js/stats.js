@@ -1,8 +1,15 @@
 /* ══════════════════════════════════════════════════════════════
    stats.js — Statistical Analysis tab
-   Port of scripts/analyze_it_value.py to client side.
-   Independent of sidebar filters: reads ALL directly.
-   IT alone population intentionally omitted (display-only choice).
+   Sidebar-independent: always reads from ALL. Rendered once at init.
+   Audience: IT + INRAE members. Purpose: show IT's positioning in
+   INRAE's European portfolio and profile the consortia they lead
+   together.
+
+   Structure:
+     1. Intro bandeau — descriptive, dynamic key numbers
+     2. Block A — coverage matrix (one row per action type)
+     3. Block C — consortium profile (4 boxplots, RIA only,
+                  INRAE coord + IT vs INRAE participant)
    ══════════════════════════════════════════════════════════════ */
 
 const AV_EU27 = new Set([
@@ -13,10 +20,12 @@ const AV_EU27 = new Set([
 
 const AV_SCHEME_ORDER = ['RIA','IA','MSCA','ERC','CSA','EIC','INFRA','COFUND','Other'];
 
-const AV_COLOR_ALONE = '#00847f';   // INRAE green — stable across view modes
-const AV_COLOR_WITH  = '#1a4f8a';   // IT blue — stable across view modes
+/* Reserved palette (kept for compatibility / future re-use) */
+const AV_GROUP_COLORS = ['#1a4f8a', '#00847f', '#92600a', '#b91c1c', '#7c3aed', '#0891b2', '#be185d'];
 
-let AV_SCOPE = 'RIA';   // 'RIA' | 'ALL' — internal toggle, no persistence
+/* Two-group colors used throughout Block C */
+const AV_COLOR_COORD_IT = '#1a4f8a';   // IT blue — INRAE coord + IT
+const AV_COLOR_PARTI    = '#00847f';   // INRAE green — INRAE participant
 
 /* ─────────────── Stats helpers ─────────────── */
 
@@ -35,10 +44,7 @@ function _avPercentile(sorted, q) {
 function _avAgg(xs, kinds) {
   const c = _avClean(xs);
   const out = { n: c.length };
-  if (!c.length) {
-    kinds.forEach(k => out[k] = null);
-    return out;
-  }
+  if (!c.length) { kinds.forEach(k => out[k] = null); return out; }
   const sorted = [...c].sort((a, b) => a - b);
   kinds.forEach(k => {
     if (k === 'mean')        out.mean   = c.reduce((s, v) => s + v, 0) / c.length;
@@ -50,66 +56,99 @@ function _avAgg(xs, kinds) {
   return out;
 }
 
-function _avPctDelta(a, b) {
-  if (a === null || a === undefined || b === null || b === undefined || a === 0) return null;
-  return (b - a) / a * 100;
+/* Lanczos approximation for ln(Γ(s)), s > 0 */
+function _avLnGamma(s) {
+  if (s < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * s)) - _avLnGamma(1 - s);
+  const c = [
+    0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+    771.32342877765313, -176.61502916214059, 12.507343278686905,
+    -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7
+  ];
+  s -= 1;
+  let a = c[0];
+  for (let i = 1; i < 9; i++) a += c[i] / (s + i);
+  const t = s + 7 + 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (s + 0.5) * Math.log(t) - t + Math.log(a);
 }
 
-/* Math.erf approximation — Abramowitz & Stegun 7.1.26 (max error ≈ 1.5e-7) */
-function _avErf(x) {
-  if (typeof Math.erf === 'function') return Math.erf(x);
-  const a1 =  0.254829592, a2 = -0.284496736, a3 = 1.421413741;
-  const a4 = -1.453152027, a5 =  1.061405429, p  = 0.3275911;
-  const sign = x < 0 ? -1 : 1;
-  x = Math.abs(x);
-  const t = 1 / (1 + p * x);
-  const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
-  return sign * y;
+/* Regularized lower incomplete gamma P(s, x) — Numerical Recipes 6.2.
+   Returns a value in [0, 1]. */
+function _avRegLowerGamma(s, x) {
+  if (x <= 0 || s <= 0) return 0;
+  const lnGammaS = _avLnGamma(s);
+  if (x < s + 1) {
+    let ap = s, sum = 1 / s, del = 1 / s;
+    for (let n = 0; n < 200; n++) {
+      ap += 1;
+      del *= x / ap;
+      sum += del;
+      if (Math.abs(del) < Math.abs(sum) * 1e-12) break;
+    }
+    return Math.max(0, Math.min(1, sum * Math.exp(-x + s * Math.log(x) - lnGammaS)));
+  } else {
+    let b = x + 1 - s, c = 1e30, d = 1 / b, h = d;
+    for (let i = 1; i <= 200; i++) {
+      const an = -i * (i - s);
+      b += 2;
+      d = an * d + b; if (Math.abs(d) < 1e-30) d = 1e-30;
+      c = b + an / c; if (Math.abs(c) < 1e-30) c = 1e-30;
+      d = 1 / d;
+      const del = d * c;
+      h *= del;
+      if (Math.abs(del - 1) < 1e-12) break;
+    }
+    const Q = h * Math.exp(-x + s * Math.log(x) - lnGammaS);
+    return Math.max(0, Math.min(1, 1 - Q));
+  }
 }
-function _avNormalCdf(x) { return 0.5 * (1 + _avErf(x / Math.SQRT2)); }
 
-/* Two-sided Mann-Whitney U with tie correction + continuity correction.
-   Mirror of mann_whitney_u() in analyze_it_value.py.
-   Returns p-value in [0,1] or null when n < 2 in either group. */
-function _avMannWhitneyU(a, b) {
-  a = _avClean(a);
-  b = _avClean(b);
-  const n1 = a.length, n2 = b.length;
-  if (n1 < 2 || n2 < 2) return null;
-  const combined = a.map(v => [v, 0]).concat(b.map(v => [v, 1]));
-  combined.sort((x, y) => x[0] - y[0]);
-  const n = n1 + n2;
-  const ranks = new Array(n);
+/* Kruskal-Wallis H (omnibus, k ≥ 2 groups) with tie correction.
+   Returns p (chi² with df = k−1) or null when insufficient data. */
+function _avKruskalWallis(groupsArr) {
+  const groups = groupsArr.map(g => _avClean(g));
+  const nonEmpty = groups.filter(g => g.length > 0);
+  if (nonEmpty.length < 2) return null;
+  const N = groups.reduce((s, g) => s + g.length, 0);
+  if (N < 3) return null;
+
+  const combined = [];
+  groups.forEach((g, i) => g.forEach(v => combined.push([v, i])));
+  combined.sort((a, b) => a[0] - b[0]);
+
+  const ranks = new Array(N);
   const tieGroups = [];
   let i = 0;
-  while (i < n) {
+  while (i < N) {
     let j = i;
-    while (j + 1 < n && combined[j + 1][0] === combined[i][0]) j++;
-    const avgRank = (i + j) / 2 + 1;   // mid-rank, 1-based
+    while (j + 1 < N && combined[j + 1][0] === combined[i][0]) j++;
+    const avgRank = (i + j) / 2 + 1;
     const size = j - i + 1;
     if (size > 1) tieGroups.push(size);
-    for (let k = i; k <= j; k++) ranks[k] = avgRank;
+    for (let m = i; m <= j; m++) ranks[m] = avgRank;
     i = j + 1;
   }
-  let R1 = 0;
-  for (let k = 0; k < n; k++) if (combined[k][1] === 0) R1 += ranks[k];
-  const U1 = R1 - n1 * (n1 + 1) / 2;
-  const U2 = n1 * n2 - U1;
-  const U  = Math.min(U1, U2);
-  const mu = n1 * n2 / 2;
-  let variance;
-  if (tieGroups.length) {
-    const tieTerm = tieGroups.reduce((s, t) => s + (t * t * t - t), 0) / (n * (n - 1));
-    variance = n1 * n2 / 12 * (n + 1 - tieTerm);
-  } else {
-    variance = n1 * n2 * (n + 1) / 12;
+
+  const k = groups.length;
+  const Rsum = new Array(k).fill(0);
+  const ni   = new Array(k).fill(0);
+  for (let m = 0; m < N; m++) {
+    Rsum[combined[m][1]] += ranks[m];
+    ni[combined[m][1]]++;
   }
-  if (variance <= 0) return null;
-  const sigma = Math.sqrt(variance);
-  let z = (Math.abs(U - mu) - 0.5) / sigma;   // continuity correction
-  if (z < 0) z = 0;
-  const p = 2 * (1 - _avNormalCdf(z));
-  return Math.max(0, Math.min(1, p));
+
+  let H = 0;
+  for (let g = 0; g < k; g++) if (ni[g] > 0) H += Rsum[g] * Rsum[g] / ni[g];
+  H = (12 / (N * (N + 1))) * H - 3 * (N + 1);
+
+  if (tieGroups.length) {
+    const sumT = tieGroups.reduce((s, t) => s + (t * t * t - t), 0);
+    const C = 1 - sumT / (N * N * N - N);
+    if (C > 0) H = H / C;
+  }
+
+  const df = ni.filter(n => n > 0).length - 1;
+  if (df < 1 || !isFinite(H) || H < 0) return null;
+  return 1 - _avRegLowerGamma(df / 2, H / 2);
 }
 
 /* ─────────────── Per-project metrics ─────────────── */
@@ -135,26 +174,23 @@ function _avProjectMetrics(p) {
       durationMonths = (ed - sd) / 86400000 / 30.4375;
     }
   }
-  const yearStart = p.startDate ? parseInt(p.startDate.slice(0, 4), 10) : null;
 
   return {
     budget: budget > 0 ? budget : null,
     nPartners: partners.length || null,
     nCountries: countries.size || null,
-    nNonEu: nonEu,                                 // 0 is meaningful — keep
+    nNonEu: nonEu,
     nActivityTypes: activityTypes.size || null,
     durationMonths,
-    yearStart,
     schemeGroup: p.schemeGroup || schemeGroup(p.fundingSchemeShort || p.fundingScheme || ''),
-    programme: p.frameworkProgramme || '',
-    domainsL1: p.domains || []
+    programme: p.programme || normProg(p)
   };
 }
 
-/* ─────────────── Formatting ─────────────── */
+/* ─────────────── Formatters ─────────────── */
 
 function _avFmtSig(p) {
-  if (p === null || p === undefined) return { text: '—', stars: '', klass: '' };
+  if (p === null || p === undefined || !isFinite(p)) return { text: '—', stars: '', klass: '' };
   let stars, pStr;
   if (p < 0.001)      { stars = '***'; pStr = '&lt;0.001'; }
   else if (p < 0.01)  { stars = '**';  pStr = p.toFixed(3); }
@@ -175,134 +211,15 @@ function _avFmtNum(v, dec) {
   return v.toFixed(dec === undefined ? 2 : dec);
 }
 
-function _avFmtPct(v, dec) {
-  if (v === null || v === undefined) return '—';
-  const d = dec === undefined ? 1 : dec;
-  const sign = v >= 0 ? '+' : '';
-  return `${sign}${v.toFixed(d)} %`;
-}
-
 function _avFmtPctShare(v, dec) {
   if (v === null || v === undefined) return '—';
   return v.toFixed(dec === undefined ? 1 : dec) + ' %';
 }
 
-function _avClsDelta(v) {
-  if (v === null || v === undefined) return '';
-  if (v >  1) return 'av-delta-pos';
-  if (v < -1) return 'av-delta-neg';
-  return 'av-delta-flat';
-}
+/* ─────────────── Boxplot (unchanged signature) ─────────────── */
 
-/* ─────────────── Renderers ─────────────── */
-
-function _avRenderMasterTable(popAlone, popWith) {
-  const ma = popAlone.map(x => x.m);
-  const mw = popWith.map(x => x.m);
-  const rows = [];
-
-  rows.push({
-    label: 'n projects',
-    a: String(popAlone.length), b: String(popWith.length),
-    delta: '—', deltaClass: '', sig: '', sigClass: ''
-  });
-
-  function addRow(label, aVal, bVal, fmtFn, sigP) {
-    const delta = _avPctDelta(aVal, bVal);
-    const sigInfo = sigP !== undefined ? _avFmtSig(sigP) : { text: '', klass: '' };
-    rows.push({
-      label,
-      a: fmtFn(aVal), b: fmtFn(bVal),
-      delta: _avFmtPct(delta), deltaClass: _avClsDelta(delta),
-      sig: sigInfo.text, sigClass: sigInfo.klass
-    });
-  }
-
-  // Budget — median + P25 / P75; MWU on full distribution shown on the median row
-  const aBud = _avAgg(ma.map(m => m.budget), ['median','p25','p75']);
-  const bBud = _avAgg(mw.map(m => m.budget), ['median','p25','p75']);
-  const pBud = _avMannWhitneyU(ma.map(m => m.budget), mw.map(m => m.budget));
-  addRow('EU budget — median', aBud.median, bBud.median, _avFmtEur, pBud);
-  addRow('EU budget — P25',    aBud.p25,    bBud.p25,    _avFmtEur);
-  addRow('EU budget — P75',    aBud.p75,    bBud.p75,    _avFmtEur);
-
-  // Partners — median only
-  const aP = _avAgg(ma.map(m => m.nPartners), ['median']);
-  const bP = _avAgg(mw.map(m => m.nPartners), ['median']);
-  const pP = _avMannWhitneyU(ma.map(m => m.nPartners), mw.map(m => m.nPartners));
-  addRow('Partners — median', aP.median, bP.median, v => _avFmtNum(v, 1), pP);
-
-  // Partner countries — median only
-  const aC = _avAgg(ma.map(m => m.nCountries), ['median']);
-  const bC = _avAgg(mw.map(m => m.nCountries), ['median']);
-  const pC = _avMannWhitneyU(ma.map(m => m.nCountries), mw.map(m => m.nCountries));
-  addRow('Partner countries — median', aC.median, bC.median, v => _avFmtNum(v, 1), pC);
-
-  // Non-EU27 countries — median
-  const aN = _avAgg(ma.map(m => m.nNonEu), ['median']);
-  const bN = _avAgg(mw.map(m => m.nNonEu), ['median']);
-  const pN = _avMannWhitneyU(ma.map(m => m.nNonEu), mw.map(m => m.nNonEu));
-  addRow('Non-EU27 countries — median', aN.median, bN.median, v => _avFmtNum(v, 1), pN);
-
-  // Distinct activity types — mean (discrete 1–5 range: median saturates, mean is more informative)
-  const aT = _avAgg(ma.map(m => m.nActivityTypes), ['mean']);
-  const bT = _avAgg(mw.map(m => m.nActivityTypes), ['mean']);
-  const pT = _avMannWhitneyU(ma.map(m => m.nActivityTypes), mw.map(m => m.nActivityTypes));
-  addRow('Distinct activity types — mean', aT.mean, bT.mean, v => _avFmtNum(v, 2), pT);
-
-  // Duration months — median only
-  const aD = _avAgg(ma.map(m => m.durationMonths), ['median']);
-  const bD = _avAgg(mw.map(m => m.durationMonths), ['median']);
-  const pD = _avMannWhitneyU(ma.map(m => m.durationMonths), mw.map(m => m.durationMonths));
-  addRow('Duration months — median', aD.median, bD.median, v => _avFmtNum(v, 1), pD);
-
-  let html = '<table class="av-table"><thead><tr>'
-    + '<th>Metric</th><th>INRAE alone</th><th>INRAE + IT</th><th>Δ %</th><th>Sig.</th>'
-    + '</tr></thead><tbody>';
-  rows.forEach(r => {
-    const dot = r.sigClass ? `<span class="av-sig-dot ${r.sigClass}"></span>` : '';
-    html += '<tr>'
-      + `<td class="av-lbl">${r.label}</td>`
-      + `<td class="av-num">${r.a}</td>`
-      + `<td class="av-num">${r.b}</td>`
-      + `<td class="av-num ${r.deltaClass}">${r.delta}</td>`
-      + `<td class="av-num ${r.sigClass}">${dot}${r.sig}</td>`
-      + '</tr>';
-  });
-  html += '</tbody></table>';
-  return html;
-}
-
-function _avRenderSchemeTable(popAloneFull, popWithFull) {
-  let html = '<table class="av-table av-scheme-table"><thead><tr>'
-    + '<th>Action</th>'
-    + '<th>alone</th><th>+IT</th>'
-    + '<th>IT %</th>'
-    + '</tr></thead><tbody>';
-  AV_SCHEME_ORDER.forEach(grp => {
-    const a = popAloneFull.filter(x => x.m.schemeGroup === grp);
-    const b = popWithFull.filter(x => x.m.schemeGroup === grp);
-    if (a.length === 0 && b.length === 0) return;   // skip empty groups (e.g. "Other")
-    const total = a.length + b.length;
-    const rate = total ? (b.length / total * 100) : null;
-    html += '<tr>'
-      + `<td class="av-lbl">${grp}</td>`
-      + `<td class="av-num">${a.length}</td>`
-      + `<td class="av-num">${b.length}</td>`
-      + `<td class="av-num">${_avFmtPctShare(rate)}</td>`
-      + '</tr>';
-  });
-  html += '</tbody></table>';
-  return html;
-}
-
-/* SVG boxplot — viewBox 220×280, two boxes (alone vs +IT) on shared Y scale.
-   tickFn(v) → optional formatter for Y axis ticks (e.g. v => (v/1e6).toFixed(1) for €→M€). */
-function _avRenderBoxplot(containerId, aloneRaw, withRaw, title, unit, tickFn) {
-  const alone  = _avClean(aloneRaw).sort((a, b) => a - b);
-  const withIt = _avClean(withRaw).sort((a, b) => a - b);
-
-  function stats(arr) {
+function _avRenderBoxplot(containerId, series, title, unit, tickFn) {
+  function boxStats(arr) {
     if (!arr.length) return null;
     const q1 = _avPercentile(arr, 25);
     const med = _avPercentile(arr, 50);
@@ -316,8 +233,7 @@ function _avRenderBoxplot(containerId, aloneRaw, withRaw, title, unit, tickFn) {
     const outliers = arr.filter(v => v < lowFence || v > highFence);
     return { q1, med, q3, whiskerLow, whiskerHigh, outliers, n: arr.length };
   }
-  const sa = stats(alone);
-  const sw = stats(withIt);
+  const stats = series.map(s => boxStats(_avClean(s.values).sort((a, b) => a - b)));
 
   const W = 220, H = 280;
   const padTop = 28, padBottom = 50, padLeft = 38, padRight = 12;
@@ -325,8 +241,7 @@ function _avRenderBoxplot(containerId, aloneRaw, withRaw, title, unit, tickFn) {
   const innerH = H - padTop - padBottom;
 
   const buckets = [];
-  if (sa) buckets.push(sa.whiskerLow, sa.whiskerHigh, ...sa.outliers);
-  if (sw) buckets.push(sw.whiskerLow, sw.whiskerHigh, ...sw.outliers);
+  stats.forEach(s => { if (s) buckets.push(s.whiskerLow, s.whiskerHigh, ...s.outliers); });
   let yMin = buckets.length ? Math.min(...buckets) : 0;
   let yMax = buckets.length ? Math.max(...buckets) : 1;
   if (yMin === yMax) { yMin -= 1; yMax += 1; }
@@ -335,9 +250,10 @@ function _avRenderBoxplot(containerId, aloneRaw, withRaw, title, unit, tickFn) {
   yMax += range * 0.05;
   const yScale = v => padTop + innerH - (v - yMin) / (yMax - yMin) * innerH;
 
-  const boxW = 36;
-  const xAlone = padLeft + innerW * 0.30;
-  const xWith  = padLeft + innerW * 0.70;
+  const n = series.length;
+  const slot = innerW / Math.max(n, 1);
+  const boxW = Math.min(36, slot * 0.55);
+  const xPos = i => padLeft + slot * (i + 0.5);
 
   function fmtTick(v) {
     if (tickFn) return tickFn(v);
@@ -369,186 +285,153 @@ function _avRenderBoxplot(containerId, aloneRaw, withRaw, title, unit, tickFn) {
       svg.push(`<circle cx="${x}" cy="${yScale(v).toFixed(1)}" r="2" fill="none" stroke="${color}" stroke-width="1"/>`);
     });
   }
+  series.forEach((s, i) => drawBox(stats[i], xPos(i), s.color));
 
-  drawBox(sa, xAlone, AV_COLOR_ALONE);
-  drawBox(sw, xWith,  AV_COLOR_WITH);
+  const maxLen = n <= 3 ? 12 : n <= 5 ? 8 : 6;
+  series.forEach((s, i) => {
+    const x = xPos(i);
+    const lbl = s.label.length > maxLen ? s.label.slice(0, maxLen - 1) + '…' : s.label;
+    svg.push(`<text x="${x}" y="${H - 30}" text-anchor="middle" class="av-bp-xlabel" fill="${s.color}">${lbl}</text>`);
+    svg.push(`<text x="${x}" y="${H - 16}" text-anchor="middle" class="av-bp-n">n=${stats[i] ? stats[i].n : 0}</text>`);
+  });
 
-  svg.push(`<text x="${xAlone}" y="${H - 30}" text-anchor="middle" class="av-bp-xlabel" fill="${AV_COLOR_ALONE}">alone</text>`);
-  svg.push(`<text x="${xWith}"  y="${H - 30}" text-anchor="middle" class="av-bp-xlabel" fill="${AV_COLOR_WITH}">+IT</text>`);
-  svg.push(`<text x="${xAlone}" y="${H - 16}" text-anchor="middle" class="av-bp-n">n=${sa ? sa.n : 0}</text>`);
-  svg.push(`<text x="${xWith}"  y="${H - 16}" text-anchor="middle" class="av-bp-n">n=${sw ? sw.n : 0}</text>`);
   if (unit) svg.push(`<text x="6" y="${(padTop - 4).toFixed(1)}" class="av-bp-unit">${unit}</text>`);
 
   svg.push('</svg>');
   document.getElementById(containerId).innerHTML = svg.join('');
 }
 
-function _avRenderItRateChart(popAlone, popWith) {
-  destroyChart('av-chart-it-rate');
-  const yearMap = new Map();
-  popAlone.forEach(({ m }) => {
-    if (!m.yearStart) return;
-    if (!yearMap.has(m.yearStart)) yearMap.set(m.yearStart, { alone: 0, withIt: 0 });
-    yearMap.get(m.yearStart).alone++;
+/* ─────────────── Renderers ─────────────── */
+
+function _avRenderCoverageMatrix(allInrae) {
+  let html = '<table class="av-table av-coverage-table"><thead><tr>'
+    + '<th>Action</th>'
+    + '<th>INRAE projects</th>'
+    + '<th>INRAE-coordinated</th>'
+    + '<th>IT % of INRAE coordinations</th>'
+    + '</tr></thead><tbody>';
+  AV_SCHEME_ORDER.forEach(grp => {
+    const inrae = allInrae.filter(p => p.schemeGroup === grp);
+    if (inrae.length === 0) return;
+    const coord   = inrae.filter(p => p.inraeRole === 'coordinator');
+    const coordIt = coord.filter(p => p.hasIT);
+    const pct = coord.length ? (coordIt.length / coord.length * 100) : null;
+    const pctCell = pct === null
+      ? '<span class="av-num">—</span>'
+      : `<div class="av-progress" title="${coordIt.length} of ${coord.length} INRAE-coordinated ${grp} projects involve IT">
+           <div class="av-progress-bar" style="width:${pct.toFixed(1)}%"></div>
+           <span class="av-progress-text">${pct.toFixed(0)} %</span>
+         </div>`;
+    html += '<tr>'
+      + `<td class="av-lbl">${grp}</td>`
+      + `<td class="av-num">${inrae.length}</td>`
+      + `<td class="av-num">${coord.length}</td>`
+      + `<td class="av-num av-pct-cell">${pctCell}</td>`
+      + '</tr>';
   });
-  popWith.forEach(({ m }) => {
-    if (!m.yearStart) return;
-    if (!yearMap.has(m.yearStart)) yearMap.set(m.yearStart, { alone: 0, withIt: 0 });
-    yearMap.get(m.yearStart).withIt++;
-  });
-  const years = [...yearMap.keys()].sort((a, b) => a - b);
-  const data = years.map(y => {
-    const d = yearMap.get(y);
-    const total = d.alone + d.withIt;
-    return { year: y, alone: d.alone, withIt: d.withIt, total, rate: total ? d.withIt / total * 100 : 0 };
-  });
-  CHARTS['av-chart-it-rate'] = new Chart(document.getElementById('av-chart-it-rate'), {
-    type: 'bar',
-    data: {
-      labels: years.map(String),
-      datasets: [{
-        label: 'IT collaboration rate',
-        data: data.map(d => +d.rate.toFixed(1)),
-        backgroundColor: 'rgba(26,79,138,0.7)',
-        borderColor: AV_COLOR_WITH, borderWidth: 1, borderRadius: 2
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            title: items => `Year ${items[0].label}`,
-            label: c => {
-              const d = data[c.dataIndex];
-              return [
-                `IT rate: ${d.rate.toFixed(1)} %`,
-                `n with IT: ${d.withIt}`,
-                `n alone: ${d.alone}`,
-                `n total: ${d.total}`
-              ];
-            }
-          }
-        }
-      },
-      scales: {
-        x: { title: { display: true, text: 'Project start year' }, ticks: { font: { size: 10 } } },
-        y: { beginAtZero: true, max: 100, title: { display: true, text: 'IT rate' },
-             ticks: { callback: v => v + ' %' } }
-      }
-    }
-  });
+  html += '</tbody></table>';
+  return html;
 }
 
 /* ─────────────── Main entry ─────────────── */
-
-function _avSetScope(scope) {
-  if (scope !== 'RIA' && scope !== 'ALL') return;
-  if (scope === AV_SCOPE) return;
-  AV_SCOPE = scope;
-  renderStats();
-}
 
 function renderStats() {
   const panel = document.getElementById('tab-stats');
   if (!panel || !Array.isArray(ALL) || !ALL.length) return;
 
-  // Destroy existing charts (panel.innerHTML is about to be replaced)
-  destroyChart('av-chart-it-rate');
+  /* All numbers below derived dynamically from ALL — sidebar-independent. */
 
-  // Populations from ALL — independent of FILTERS / VISIBLE_PROJECTS
-  const popAloneFull = ALL.filter(p => p.hasINRAE && !p.hasIT).map(p => ({ p, m: _avProjectMetrics(p) }));
-  const popWithFull  = ALL.filter(p => p.hasINRAE &&  p.hasIT).map(p => ({ p, m: _avProjectMetrics(p) }));
+  // Intro key figures
+  const allInrae = ALL.filter(p => p.hasINRAE);
+  const riaInrae = allInrae.filter(p => p.schemeGroup === 'RIA');
+  const riaInraeCoord = riaInrae.filter(p => p.inraeRole === 'coordinator');
+  const riaInraeCoordIt = riaInraeCoord.filter(p => p.hasIT);
+  const riaInraeCoordNoIt = riaInraeCoord.filter(p => !p.hasIT);
+  const pctItInCoord = riaInraeCoord.length
+    ? (riaInraeCoordIt.length / riaInraeCoord.length * 100)
+    : 0;
+  const nTotal = ALL.length;
 
-  const inScope = m => AV_SCOPE === 'RIA' ? m.schemeGroup === 'RIA' : true;
-  const popAlone = popAloneFull.filter(x => inScope(x.m));
-  const popWith  = popWithFull.filter(x => inScope(x.m));
+  // Block C populations
+  const groupCoordIt = riaInraeCoordIt;
+  const groupParti   = riaInrae.filter(p => p.inraeRole === 'participant');
+  const metricsCoordIt = groupCoordIt.map(_avProjectMetrics);
+  const metricsParti   = groupParti.map(_avProjectMetrics);
 
-  const scopeLabel = AV_SCOPE === 'RIA' ? 'RIA only' : 'all actions';
+  const sig = key => _avKruskalWallis([
+    metricsCoordIt.map(m => m[key]),
+    metricsParti.map(m => m[key])
+  ]);
+  const sigBudget   = _avFmtSig(sig('budget'));
+  const sigPartners = _avFmtSig(sig('nPartners'));
+  const sigActTypes = _avFmtSig(sig('nActivityTypes'));
+  const sigDuration = _avFmtSig(sig('durationMonths'));
 
   panel.innerHTML = `
     <div class="av-bandeau">
-      <div class="av-bandeau-row">
-        <h2 class="av-title">Statistical Analysis</h2>
-        <div class="av-toggle-group">
-          <span class="av-toggle-label">Scope</span>
-          <button class="av-toggle ${AV_SCOPE === 'RIA' ? 'on' : ''}" onclick="_avSetScope('RIA')">RIA only</button>
-          <button class="av-toggle ${AV_SCOPE === 'ALL' ? 'on' : ''}" onclick="_avSetScope('ALL')">All actions</button>
-        </div>
-      </div>
-      <div class="av-pop-counts">
-        <span class="av-c-tag av-c-alone"><span class="av-c-dot"></span>INRAE alone <strong>n=${popAlone.length}</strong></span>
-        <span class="av-c-tag av-c-with"><span class="av-c-dot"></span>INRAE + IT <strong>n=${popWith.length}</strong></span>
-        ${AV_SCOPE === 'RIA'
-          ? `<span class="av-c-meta">(of ${popAloneFull.length} / ${popWithFull.length} all actions)</span>`
-          : ''}
-      </div>
-      <div class="av-warning">
-        ⚠ Sidebar filters do not apply here — scope set by the toggle above.
-      </div>
-    </div>
-
-    <div class="av-top-grid">
-      <div class="av-top-side">
-        <div class="av-section">
-          <h3 class="av-section-title">IT presence by action type <span class="av-section-meta">— all actions</span></h3>
-          ${_avRenderSchemeTable(popAloneFull, popWithFull)}
-          <p class="av-note">
-            IT % = n with IT / (n alone + n with IT) within each action type.
-          </p>
-        </div>
-      </div>
-      <div class="av-top-main">
-        <div class="av-section">
-          <h3 class="av-section-title">Master comparative table — ${scopeLabel} (n=${popAlone.length} / ${popWith.length})</h3>
-          ${_avRenderMasterTable(popAlone, popWith)}
-          <p class="av-note">
-            Δ % = (INRAE+IT − INRAE alone) / INRAE alone × 100, computed on the same statistic.
-            Projects with missing values are excluded from a metric but stay in the group n.
-            Sig. = two-sided Mann-Whitney U with tie + continuity correction (one test per metric, on the first row).
-            <span class="av-sig-dot av-sig-strong"></span> p&lt;0.01 ·
-            <span class="av-sig-dot av-sig-mid"></span> p&lt;0.05 ·
-            <span class="av-sig-dot av-sig-no"></span> ns
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="av-section">
-      <h3 class="av-section-title">Distribution comparison (${scopeLabel})</h3>
-      <div class="av-boxplots">
-        <div class="av-bp-cell" id="av-box-budget"></div>
-        <div class="av-bp-cell" id="av-box-partners"></div>
-        <div class="av-bp-cell" id="av-box-orgtypes"></div>
-        <div class="av-bp-cell" id="av-box-duration"></div>
-      </div>
-      <p class="av-note">
-        Box = P25–P75, line = median, whiskers cap at 1.5×IQR, circles = outliers.
+      <h2 class="av-title">Statistical Analysis</h2>
+      <p class="av-intro">
+        This page shows <strong>IT</strong>'s position within <strong>INRAE</strong>'s European research
+        portfolio and characterises the consortia they lead together. Out of
+        <strong>${riaInrae.length}</strong> RIA projects involving INRAE,
+        <strong>${riaInraeCoord.length}</strong> are coordinated by INRAE, and
+        <strong>IT figures in ${pctItInCoord.toFixed(0)} %</strong> of those — the central insight
+        explored below.
+        <span class="av-intro-meta">Dataset: ${nTotal} projects total (IT or INRAE involved).</span>
       </p>
     </div>
 
     <div class="av-section">
-      <h3 class="av-section-title">IT collaboration rate by year (${scopeLabel})</h3>
-      <div class="av-chart-wrap"><canvas id="av-chart-it-rate"></canvas></div>
+      <h3 class="av-section-title">Coverage matrix <span class="av-section-meta">— by action type</span></h3>
+      ${_avRenderCoverageMatrix(allInrae)}
       <p class="av-note">
-        For each project start year: rate = n(INRAE+IT) / n(INRAE total). Hover bars for raw counts.
+        For each action type: how many projects involve INRAE, how many are INRAE-coordinated,
+        and what share of those coordinations also involve IT.
+        The IT % bar reads as <em>n(INRAE coord + IT) / n(INRAE coord)</em>.
+      </p>
+    </div>
+
+    <div class="av-section">
+      <h3 class="av-section-title">
+        Consortium profile <span class="av-section-meta">— RIA only: INRAE coord + IT vs INRAE participant</span>
+      </h3>
+      <p class="av-note av-note-callout">
+        Note: <strong>${riaInraeCoordNoIt.length}</strong> INRAE-coordinated RIA
+        project${riaInraeCoordNoIt.length === 1 ? '' : 's'} without IT
+        ${riaInraeCoordNoIt.length === 1 ? 'is' : 'are'} not shown here (too few for a reliable third group).
+      </p>
+      <div class="av-boxplots">
+        <div class="av-bp-cell">
+          <div id="av-box-budget"></div>
+          <div class="av-bp-sig ${sigBudget.klass}">p = ${sigBudget.text}</div>
+        </div>
+        <div class="av-bp-cell">
+          <div id="av-box-partners"></div>
+          <div class="av-bp-sig ${sigPartners.klass}">p = ${sigPartners.text}</div>
+        </div>
+        <div class="av-bp-cell">
+          <div id="av-box-orgtypes"></div>
+          <div class="av-bp-sig ${sigActTypes.klass}">p = ${sigActTypes.text}</div>
+        </div>
+        <div class="av-bp-cell">
+          <div id="av-box-duration"></div>
+          <div class="av-bp-sig ${sigDuration.klass}">p = ${sigDuration.text}</div>
+        </div>
+      </div>
+      <p class="av-note">
+        Box = P25–P75, line = median, whiskers cap at 1.5×IQR, circles = outliers.
+        p-value from Kruskal-Wallis (two-group case, equivalent to Mann-Whitney with continuity correction).
       </p>
     </div>
   `;
 
-  _avRenderBoxplot('av-box-budget',
-    popAlone.map(x => x.m.budget), popWith.map(x => x.m.budget),
-    'EU budget', 'M€', v => (v / 1e6).toFixed(1));
-  _avRenderBoxplot('av-box-partners',
-    popAlone.map(x => x.m.nPartners), popWith.map(x => x.m.nPartners),
-    'Partners', 'count');
-  _avRenderBoxplot('av-box-orgtypes',
-    popAlone.map(x => x.m.nActivityTypes), popWith.map(x => x.m.nActivityTypes),
-    'Distinct activity types', 'count');
-  _avRenderBoxplot('av-box-duration',
-    popAlone.map(x => x.m.durationMonths), popWith.map(x => x.m.durationMonths),
-    'Duration', 'months');
+  const seriesFor = key => ([
+    { values: metricsCoordIt.map(m => m[key]), label: 'coord+IT',  color: AV_COLOR_COORD_IT },
+    { values: metricsParti.map(m => m[key]),   label: 'particip',  color: AV_COLOR_PARTI }
+  ]);
 
-  _avRenderItRateChart(popAlone, popWith);
+  _avRenderBoxplot('av-box-budget',   seriesFor('budget'),         'EU budget',               'M€',    v => (v / 1e6).toFixed(1));
+  _avRenderBoxplot('av-box-partners', seriesFor('nPartners'),      'Partners',                'count');
+  _avRenderBoxplot('av-box-orgtypes', seriesFor('nActivityTypes'), 'Distinct activity types', 'count');
+  _avRenderBoxplot('av-box-duration', seriesFor('durationMonths'), 'Duration',                'months');
 }
