@@ -14,12 +14,12 @@
       if (legacy === 'IT')         scope = ['IT'];
       else if (legacy === 'INRAE') scope = ['INRAE'];
       else if (legacy === 'BOTH')  scope = [];          // legacy union → ALL
-      else                         scope = ['IT'];       // default
+      else                         scope = [];           // default: ALL
     }
     var hasIT = scope.indexOf('IT') >= 0, hasIN = scope.indexOf('INRAE') >= 0;
     var mode = (hasIT && hasIN) ? 'BOTH' : hasIT ? 'IT' : hasIN ? 'INRAE' : 'ALL';
     document.documentElement.classList.add('mode-' + mode);
-  } catch(e) { document.documentElement.classList.add('mode-IT'); }
+  } catch(e) { document.documentElement.classList.add('mode-ALL'); }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=Fira+Code:wght@400;500&family=Lato:wght@300;400;700&display=swap" rel="stylesheet">
@@ -381,7 +381,7 @@
               <dd>Each project's EU contribution (for the active scope) is distributed evenly over its duration. A project spanning 3.5 years with €700k contribution yields ~€200k/year. Years partially covered receive a proportional share. This allows meaningful cross-year comparisons despite uneven project starts and ends.</dd>
 
               <dt>Scope filter (IT / INRAE)</dt>
-              <dd>The <strong>Scope</strong> filter in the left sidebar controls which projects are visible. <strong>IT only</strong> (default): projects where INRAE Transfert SAS is a partner. <strong>INRAE only</strong>: projects where the broader INRAE research institute participates (typically a much larger portfolio). <strong>Both checked</strong>: only projects shared by IT and INRAE (intersection). <strong>Neither checked</strong>: every project involving either entity (union of all). When both or neither are selected, budget figures are summed (IT + INRAE combined). Each project's card shows up to three budget chips: total EU budget, IT contribution, INRAE contribution — only the relevant ones are displayed.</dd>
+              <dd>The <strong>Scope</strong> filter in the left sidebar controls which projects are visible. <strong>IT only</strong>: projects where INRAE Transfert SAS is a partner. <strong>INRAE only</strong>: projects where the broader INRAE research institute participates (typically a much larger portfolio). <strong>Both checked</strong>: only projects shared by IT and INRAE (intersection). <strong>Neither checked</strong> (default): every project involving either entity (union of all). When both or neither are selected, budget figures are summed (IT + INRAE combined). Each project's card shows up to three budget chips: total EU budget, IT contribution, INRAE contribution — only the relevant ones are displayed.</dd>
 
               <dt>FP7 → funding type mapping</dt>
               <dd>FP7 funding scheme codes are normalised to categories equivalent to H2020/HE types to enable cross-programme budget breakdowns. Mappings include: <code>CP</code>, <code>CP-TP</code>, <code>CP-IP</code> → RIA · <code>CP-*-SICA</code> → RIA · <code>MC-*</code> (Marie Curie) → MSCA · <code>ERC-*</code> → ERC · <code>BSG-SME*</code> → EIC · <code>NoE</code> (Networks of Excellence) → CSA · <code>HORIZON-AG/PARC</code> → COFUND.</dd>

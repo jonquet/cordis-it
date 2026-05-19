@@ -3,12 +3,12 @@
    ══════════════════════════════════════════════════════════════ */
 
 let ALL = [], VISIBLE_PROJECTS = [], FILTERED = [];
-let FILTERS = { scope: new Set(['IT']), programme: new Set(), itRole: new Set(), inraeRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
+let FILTERS = { scope: new Set(), programme: new Set(), itRole: new Set(), inraeRole: new Set(), schemeGroup: new Set(), status: new Set(), country: new Set() };
 let SEARCH = '', SORT = 'startDate-desc';
 let DOMAIN_FILTERS = [], DOMAIN_OPERATOR = 'OR';
 let REGION_FILTER = null, PARTNER_FILTER = null, PARTNER_PAGE = 0;
 let CHARTS = {};
-let VIEW_MODE = 'IT';   // derived from FILTERS.scope: 'IT' | 'INRAE' | 'BOTH' (intersection) | 'ALL' (union)
+let VIEW_MODE = 'ALL';  // derived from FILTERS.scope: 'IT' | 'INRAE' | 'BOTH' (intersection) | 'ALL' (union)
 
 function destroyChart(id) { if (CHARTS[id]) { CHARTS[id].destroy(); delete CHARTS[id]; } }
 
@@ -35,6 +35,10 @@ function applyViewMode({ rebuild = true } = {}) {
   if (rebuild) {
     delete window._domDescendants;
     delete window._domToIds;
+    delete window._filteredPkeys;
+    delete window._nodeFilteredCount;
+    if (typeof _domTree !== 'undefined') _domTree = null;
+    if (typeof _donutDrillNode !== 'undefined') _donutDrillNode = null;
     buildKPIs();
     buildSidebar();
     apply();
@@ -88,7 +92,7 @@ async function load() {
         if (legacy === 'IT')         scope = ['IT'];
         else if (legacy === 'INRAE') scope = ['INRAE'];
         else if (legacy === 'BOTH')  scope = [];        // legacy union → ALL
-        else                         scope = ['IT'];     // default
+        else                         scope = [];         // default: ALL
       }
       FILTERS.scope = new Set(scope);
     } catch (e) {}
@@ -166,13 +170,16 @@ function apply() {
       }
     }
     if (DOMAIN_FILTERS.length) {
-      const getDescendantIds = df => {
-        if (window._domDescendants && window._domDescendants[df.key]) return window._domDescendants[df.key];
-        return null;
-      };
       const matchDomain = df => {
-        const ids = getDescendantIds(df);
+        const ids = window._domDescendants && window._domDescendants[df.key];
         if (ids && ids.size > 0) return ids.has(p.id + '|' + p.programme);
+        const selectedPath = (df.path && df.path.length ? df.path : (df.key || '').split('|||')).filter(Boolean);
+        const hasPathMatch = (p.euroSciVoc || []).some(sv => {
+          const parts = (sv.path || '').trim('/').split('/').map(x => x.trim()).filter(Boolean);
+          return selectedPath.length && selectedPath.every((seg, i) => parts[i] === seg);
+        });
+        if (hasPathMatch) return true;
+        if (selectedPath.length === 1 && projectCats(p, 'l1').some(c => c === selectedPath[0])) return true;
         const exactIds = window._domToIds && window._domToIds[df.name];
         if (exactIds && exactIds.size > 0) return exactIds.has(p.id + '|' + p.programme);
         return projectCats(p).some(c => c === df.name);
@@ -346,7 +353,7 @@ function bindEvents() {
     SEARCH = ''; SORT = 'startDate-desc'; DOMAIN_FILTERS = []; DOMAIN_OPERATOR = 'OR';
     REGION_FILTER = null; PARTNER_FILTER = null;
     Object.values(FILTERS).forEach(s => s.clear());
-    FILTERS.scope = new Set(['IT']);   // restore default scope
+    FILTERS.scope = new Set();         // restore default scope: ALL
     persistScope();
     document.getElementById('search').value = '';
     document.getElementById('sort').value = 'startDate-desc';
