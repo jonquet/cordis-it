@@ -36,9 +36,15 @@ def main():
     spreadsheet = gc.open_by_key(SHEET_ID)
     worksheet = next(ws for ws in spreadsheet.worksheets() if ws.id == SHEET_GID)
 
-    # Column A, skip header row (row 1)
+    # Column A, skip header row (row 1) — keep only numeric IDs, deduplicate
     values = worksheet.col_values(1)[1:]
-    ids = [v.strip() for v in values if v.strip()]
+    seen = set()
+    ids = []
+    for v in values:
+        v = v.strip()
+        if v and v.isdigit() and v not in seen:
+            seen.add(v)
+            ids.append(v)
 
     OUTPUT.write_text(json.dumps(ids, indent=2) + '\n')
     print(f'Written {len(ids)} project IDs to {OUTPUT}')
