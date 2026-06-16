@@ -74,6 +74,20 @@ async function load() {
       window._cordisDataDate = raw.cordisDataDate || null;
     }
 
+    /* ── Project filter (data/project_filter.json) ──
+       If the file contains a non-empty array of IDs, only those projects are kept.
+       An empty array or missing file means no filtering (show all). */
+    try {
+      const fr = await fetch('data/project_filter.json');
+      if (fr.ok) {
+        const filterIds = await fr.json();
+        if (Array.isArray(filterIds) && filterIds.length > 0) {
+          const idSet = new Set(filterIds.map(String));
+          ALL = ALL.filter(p => idSet.has(String(p.id)));
+        }
+      }
+    } catch (_) {}
+
     ALL.forEach(p => {
       p.programme = normProg(p);
       p.itRole = normRole(p.itRole || '');

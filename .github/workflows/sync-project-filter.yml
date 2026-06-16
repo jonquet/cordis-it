@@ -1,0 +1,36 @@
+name: Sync project filter from Google Sheet
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # chaque lundi à 7h UTC (après update-data)
+  workflow_dispatch:        # bouton manuel depuis GitHub
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install gspread google-auth
+
+      - name: Sync project_filter.json
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          SHEET_GID: '475846146'
+        run: python3 scripts/sync_project_filter.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add data/project_filter.json
+          git diff --staged --quiet || git commit -m "Sync project filter from Google Sheet $(date +%Y-%m-%d)"
+          git push
