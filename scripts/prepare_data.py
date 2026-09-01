@@ -6,6 +6,12 @@ Downloads CORDIS data (Horizon Europe + H2020 + FP7), filters projects
 involving INRAE and/or IT (INRAE Transfert), and generates
 data/inrae_projects.json for the webapp.
 
+Note: CORDIS switched the "-json.zip" bundles to a rich, one-file-per-project
+format that no longer ships a flat organization/euroSciVoc table. The "-csv.zip"
+bundles still use the flat tabular layout (project.csv, organization.csv,
+euroSciVoc.csv, topics.csv…), so we read those. Columns map 1:1 onto the field
+names this script already expects.
+
 Usage:
     cd ~/codium/cordis-inrae
     python3 scripts/prepare_data.py
@@ -14,10 +20,13 @@ Option:
     --no-download   Use cached ZIPs in data/cache/ (skip re-download)
 """
 
-import argparse, io, json, os, sys, zipfile
+import argparse, csv, io, json, os, sys, zipfile
 from datetime import date as dt_date
 from urllib.request import urlopen, Request
 from urllib.error import URLError
+
+# CORDIS CSV objective/keyword fields can be very large — lift csv's field cap.
+csv.field_size_limit(10_000_000)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIG
@@ -32,18 +41,18 @@ OVERRIDES = os.path.join(DATA_DIR, "status_overrides.json")
 SOURCES = [
     {
         "prog":  "HORIZON",
-        "url":   "https://cordis.europa.eu/data/cordis-HORIZONprojects-json.zip",
-        "cache": os.path.join(CACHE_DIR, "horizon.zip"),
+        "url":   "https://cordis.europa.eu/data/cordis-HORIZONprojects-csv.zip",
+        "cache": os.path.join(CACHE_DIR, "horizon-csv.zip"),
     },
     {
         "prog":  "H2020",
-        "url":   "https://cordis.europa.eu/data/cordis-h2020projects-json.zip",
-        "cache": os.path.join(CACHE_DIR, "h2020.zip"),
+        "url":   "https://cordis.europa.eu/data/cordis-h2020projects-csv.zip",
+        "cache": os.path.join(CACHE_DIR, "h2020-csv.zip"),
     },
     {
         "prog":  "FP7",
-        "url":   "https://cordis.europa.eu/data/cordis-fp7projects-json.zip",
-        "cache": os.path.join(CACHE_DIR, "fp7.zip"),
+        "url":   "https://cordis.europa.eu/data/cordis-fp7projects-csv.zip",
+        "cache": os.path.join(CACHE_DIR, "fp7-csv.zip"),
     },
 ]
 
@@ -120,16 +129,15 @@ def best_role(existing, new_role, new_ec):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_zip_dataset_date(zip_bytes):
-    """Extract the most recent contentUpdateDate from project.json inside the ZIP."""
+    """Extract the most recent contentUpdateDate from the project table inside the ZIP."""
     import io as _io
     try:
         with zipfile.ZipFile(_io.BytesIO(zip_bytes)) as zf:
-            names = [n for n in zf.namelist() if n.endswith('project.json')
-                     and 'organization' not in n.lower()]
+            names = [n for n in zf.namelist()
+                     if n.lower() in ('project.csv', 'project.json')]
             if not names: return None
-            with zf.open(names[0]) as f:
-                projects = json.load(f)
-            dates = [p.get('contentUpdateDate','') for p in projects
+            projects = read_table(zf, names[0])
+            dates = [p.get('contentUpdateDate', '') for p in projects
                      if p.get('contentUpdateDate')]
             return max(dates) if dates else None
     except Exception:
@@ -176,6 +184,12 @@ def load_zip(source, no_download):
 # JSON PARSING
 # ─────────────────────────────────────────────────────────────────────────────
 
+def read_csv(zf, filename):
+    """Read a CORDIS CSV table (semicolon-separated) into a list of dict rows."""
+    raw = zf.read(filename).decode("utf-8-sig", errors="ignore")
+    reader = csv.DictReader(io.StringIO(raw), delimiter=";", quotechar='"')
+    return list(reader)
+
 def read_json(zf, filename):
     with zf.open(filename) as f:
         raw = json.load(f)
@@ -186,11 +200,15 @@ def read_json(zf, filename):
         if isinstance(v, list) and len(v) > 0: return v
     raise ValueError(f"Unexpected JSON structure in {filename}: keys={list(raw.keys())}")
 
+def read_table(zf, filename):
+    """Read a CORDIS table (CSV or JSON) into a list of dict rows."""
+    return read_csv(zf, filename) if filename.lower().endswith(".csv") else read_json(zf, filename)
+
 def find_file(names, *keywords, exclude=None):
-    """Find first .json file whose name contains all keywords (case-insensitive)."""
+    """Find first .csv/.json file whose name contains all keywords (case-insensitive)."""
     for name in names:
         nl = name.lower()
-        if not nl.endswith(".json"): continue
+        if not (nl.endswith(".csv") or nl.endswith(".json")): continue
         if exclude and any(e in nl for e in exclude): continue
         if all(k in nl for k in keywords): return name
     return None
@@ -217,18 +235,18 @@ def process(zip_bytes, prog):
             return []
 
         log(f"  Reading organizations ({org_file})...")
-        orgs_raw = read_json(zf, org_file)
+        orgs_raw = read_table(zf, org_file)
         log(f"  → {len(orgs_raw):,} rows")
 
         log(f"  Reading projects ({proj_file})...")
-        projs_raw = read_json(zf, proj_file)
+        projs_raw = read_table(zf, proj_file)
         log(f"  → {len(projs_raw):,} projects")
 
         # EuroSciVoc — one entry per project+discipline
         scivoc_by_project = {}
         if scivoc_file:
             log(f"  Reading EuroSciVoc ({scivoc_file})...")
-            scivoc_raw = read_json(zf, scivoc_file)
+            scivoc_raw = read_table(zf, scivoc_file)
             log(f"  → {len(scivoc_raw):,} entries")
             for row in scivoc_raw:
                 pid = ss(get(row, "projectID", "project_id"))
@@ -560,10 +578,20 @@ def main():
     log(f"  Partner countries: {ctries}")
 
     # ── Export ────────────────────────────────────────────────────────────────
+    import re
     from datetime import datetime, timezone
 
+    # A handful of CORDIS CSV rows carry unescaped quotes in the objective field,
+    # which shifts later columns (contentUpdateDate can end up holding objective
+    # text). Keep only well-formed YYYY-MM-DD... values so a garbled row can't
+    # poison the dataset date or show as junk in the UI.
+    _date_re = re.compile(r"^\d{4}-\d{2}-\d{2}")
+    for p in all_projects:
+        if not _date_re.match(str(p.get("contentUpdateDate", ""))):
+            p["contentUpdateDate"] = ""
+
     # Most recent contentUpdateDate across all projects = real CORDIS data date
-    all_dates = [p.get("contentUpdateDate","") for p in all_projects if p.get("contentUpdateDate")]
+    all_dates = [p["contentUpdateDate"] for p in all_projects if p.get("contentUpdateDate")]
     cordis_data_date = max(all_dates)[:10] if all_dates else ""  # keep YYYY-MM-DD only
 
     output = {
